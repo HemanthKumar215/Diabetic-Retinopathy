@@ -1,0 +1,136 @@
+@import "tailwindcss";
+
+@theme {
+  --animate-spin-slow: spin 8s linear infinite;
+  --animate-spin-reverse-slow: spin-reverse 10s linear infinite;
+  --animate-pulse-glow: pulse-glow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-scanline: scanline 2s linear infinite;
+  --animate-fade-in: fade-in 0.8s ease-out forwards;
+  --animate-blink-eye: blink-eye 6s infinite;
+  --animate-float-hud: float-hud 4s ease-in-out infinite;
+  --animate-slide-in-right: slide-in-right 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  --animate-parallax-particles: parallax-particles 20s linear infinite;
+
+  @keyframes spin-reverse {
+    0% { transform: rotate(360deg); }
+    100% { transform: rotate(0deg); }
+  }
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 0.8; filter: drop-shadow(0 0 10px rgba(6, 182, 212, 0.5)); }
+    50% { opacity: 1; filter: drop-shadow(0 0 25px rgba(6, 182, 212, 0.8)); }
+  }
+  @keyframes scanline {
+    0% { top: -10%; opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { top: 110%; opacity: 0; }
+  }
+  @keyframes fade-in {
+    0% { opacity: 0; transform: translateY(15px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes blink-eye {
+    0%, 94%, 98%, 100% { transform: scaleY(1); }
+    96% { transform: scaleY(0.05); }
+  }
+  @keyframes float-hud {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+  @keyframes slide-in-right {
+    0% { transform: translateX(50px); opacity: 0; }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes parallax-particles {
+    0% { background-position: 0px 0px, 0px 0px, 0px 0px; }
+    100% { background-position: 100% 100%, 1000px 500px, -500px 1000px; }
+  }
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: #030712;
+  color: #e2e8f0;
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  overflow-x: hidden;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Neural/Particle Cyber Background */
+.cyber-bg {
+  position: fixed;
+  inset: 0;
+  background: 
+    radial-gradient(circle at 50% 50%, rgba(15, 23, 42, 0) 0%, rgba(3, 7, 18, 1) 100%),
+    linear-gradient(rgba(6, 182, 212, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(6, 182, 212, 0.04) 1px, transparent 1px);
+  background-size: 100% 100%, 50px 50px, 50px 50px;
+  background-position: center center;
+  z-index: 0;
+}
+
+/* Subtle moving particles (CSS trick) */
+.particle-layer {
+  position: fixed;
+  inset: -20%; /* Prevents edge jumping */
+  background-image: 
+    radial-gradient(1px 1px at 10% 20%, rgba(255, 255, 255, 0.3) 1px, transparent 0),
+    radial-gradient(1.5px 1.5px at 30% 60%, rgba(6, 182, 212, 0.4) 1px, transparent 0),
+    radial-gradient(2px 2px at 80% 40%, rgba(59, 130, 246, 0.3) 1px, transparent 0);
+  background-size: 200px 200px, 350px 350px, 500px 500px;
+  z-index: 0;
+  opacity: 0.5;
+  animation: parallax-particles 150s linear infinite;
+  pointer-events: none;
+}
+
+/* Soft Radial Glow behind retina */
+.glow-behind {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 120%; height: 120%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.15) 0%, transparent 60%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Biometric Curved Lens Effect */
+.lens-curved {
+  border-radius: 50% / 15%; /* Eye shaped curve */
+  overflow: hidden;
+  box-shadow: inset 0 0 60px rgba(0,0,0,0.9), 0 0 30px rgba(6, 182, 212, 0.2);
+  position: relative;
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s ease;
+}
+
+.lens-curved:hover {
+  box-shadow: inset 0 0 60px rgba(0,0,0,0.9), 0 0 50px rgba(6, 182, 212, 0.4);
+}
+
+.lens-overlay-glare {
+  position: absolute;
+  top: -50%; left: -50%; right: -50%; bottom: -50%;
+  background: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.08) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 20;
+}
+
+.scan-grid-overlay {
+  position: absolute;
+  inset: 0;
+  background: 
+    linear-gradient(rgba(6,182,212, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(6,182,212, 0.1) 1px, transparent 1px);
+  background-size: 20px 20px;
+  pointer-events: none;
+  z-index: 10;
+  mix-blend-mode: overlay;
+}
