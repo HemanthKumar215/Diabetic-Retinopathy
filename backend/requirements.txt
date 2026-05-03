@@ -1,9 +1,10 @@
 fastapi
-uvicorn
+uvicorn[standard]
 python-multipart
 timm
-torch
-torchvision
-opencv-python
-pandas
-matplotlib
+torch==2.2.2+cpu
+torchvision==0.17.2+cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
+opencv-python-headless
+Pillow
+numpy

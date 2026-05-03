@@ -8,6 +8,10 @@ import uuid
 import shutil
 import asyncio
 
+# Base URL — set via environment variable in production
+# e.g. export BASE_URL=http://YOUR_DROPLET_IP
+BASE_URL = os.environ.get("BASE_URL", "http://localhost:8000")
+
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -308,9 +312,9 @@ async def predict(file: UploadFile = File(...)):
             "severity_color": severity_colors[class_id],
             "severity_icon": severity_icons[class_id],
             "clinical_note": clinical_notes[class_id],
-            "original_image_url": f"http://localhost:8000/static/uploads/{processed_filename}",
-            "heatmap_image_url":  f"http://localhost:8000/static/heatmaps/{heatmap_filename}",
-            "ar_heatmap_url":     f"http://localhost:8000/static/heatmaps/{ar_heatmap_filename}"
+            "original_image_url": f"{BASE_URL}/static/uploads/{processed_filename}",
+            "heatmap_image_url":  f"{BASE_URL}/static/heatmaps/{heatmap_filename}",
+            "ar_heatmap_url":     f"{BASE_URL}/static/heatmaps/{ar_heatmap_filename}"
         }
         
     except Exception as e:
