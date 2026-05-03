@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>MindAR Target Compiler</title>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js"></script>
+  <style>
+    body { background: #0a0a1a; color: #e2e8f0; font-family: monospace; padding: 30px; }
+    h1 { color: #06b6d4; margin-bottom: 20px; }
+    #status { margin-top: 20px; color: #94a3b8; line-height: 1.8; }
+    #download { display: none; margin-top: 20px; padding: 12px 28px; background: #06b6d4; color: #000;
+      font-weight: bold; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; }
+    #preview { max-width: 300px; margin-top: 16px; border-radius: 10px; border: 1px solid #334155; }
+    input[type=file] { margin-top: 10px; color: #94a3b8; }
+    label { display: block; color: #64748b; font-size: 0.8rem; margin-bottom: 6px; }
+  </style>
+</head>
+<body>
+  <h1>🎯 MindAR Target Compiler</h1>
+  <p style="color:#64748b">Select the fundus image you want to use as an AR tracking target. A <code>.mind</code> file will be compiled and downloaded.</p>
+  <p style="color:#f87171;font-size:0.85rem;margin-top:8px">⚠️ Use the same image that will be printed/displayed for tracking.</p>
+
+  <br/>
+  <label>Select Fundus Image (PNG / JPG)</label>
+  <input type="file" id="img-input" accept="image/*" />
+  <img id="preview" style="display:none"/>
+
+  <div id="status">Waiting for image...</div>
+  <button id="download">⬇ Download targets.mind</button>
+
+  <script>
+    const input    = document.getElementById('img-input');
+    const status   = document.getElementById('status');
+    const dlBtn    = document.getElementById('download');
+    const preview  = document.getElementById('preview');
+    let compiledBuffer = null;
+
+    input.addEventListener('change', async () => {
+      const file = input.files[0];
+      if (!file) return;
+
+      // Show preview
+      const url = URL.createObjectURL(file);
+      preview.src = url;
+      preview.style.display = 'block';
+
+      status.innerHTML = '⏳ Compiling target... this may take 30–60 seconds on large images.';
+      dlBtn.style.display = 'none';
+
+      try {
+        const compiler = new MINDAR.IMAGE.Compiler();
+        const img = await loadImage(url);
+        await compiler.compileImageTargets([img], (progress) => {
+          status.innerHTML = `⏳ Compiling: ${(progress * 100).toFixed(1)}%`;
+        });
+        compiledBuffer = await compiler.exportData();
+        status.innerHTML = '✅ Compilation complete! Click Download to save <code>targets.mind</code>.';
+        dlBtn.style.display = 'inline-block';
+      } catch (e) {
+        status.innerHTML = '❌ Error: ' + e.message;
+        console.error(e);
+      }
+    });
+
+    dlBtn.addEventListener('click', () => {
+      if (!compiledBuffer) return;
+      const blob = new Blob([compiledBuffer]);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'targets.mind';
+      a.click();
+    });
+
+    function loadImage(src) {
+      return new Promise((res, rej) => {
+        const img = new Image();
+        img.onload = () => res(img);
+        img.onerror = rej;
+        img.src = src;
+      });
+    }
+  </script>
+</body>
+</html>

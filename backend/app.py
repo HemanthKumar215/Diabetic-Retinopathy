@@ -245,25 +245,72 @@ async def predict(file: UploadFile = File(...)):
         processed_path = os.path.join(CONFIG["uploads_dir"], processed_filename)
         cv2.imwrite(processed_path, cv2.cvtColor(original_img, cv2.COLOR_RGB2BGR))
 
-        # --- Generate Grad-CAM overlay using pure OpenCV (pixel-accurate, no pyplot artifacts) ---
+        # --- Generate flat Grad-CAM overlay (for flat UI compare mode) ---
         heatmap_filename = f"heatmap_{file_id}.png"
         heatmap_path = os.path.join(CONFIG["heatmaps_dir"], heatmap_filename)
 
         # float [0,1] → uint8 → JET colormap (BGR)
-        heatmap_uint8     = (heatmap * 255).astype(np.uint8)
-        heatmap_colored   = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)   # BGR
+        heatmap_uint8   = (heatmap * 255).astype(np.uint8)
+        heatmap_colored = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)   # BGR
 
-        # Blend: 55% original + 45% heatmap
+        # Blend: 55% original + 45% heatmap  (flat UI)
         original_bgr = cv2.cvtColor(original_img, cv2.COLOR_RGB2BGR)
         overlay_bgr  = cv2.addWeighted(original_bgr, 0.55, heatmap_colored, 0.45, 0)
         cv2.imwrite(heatmap_path, overlay_bgr)
 
+        # --- Generate TRANSPARENT RGBA heatmap PNG for WebAR Three.js texture ---
+        ar_heatmap_filename = f"ar_heatmap_{file_id}.png"
+        ar_heatmap_path = os.path.join(CONFIG["heatmaps_dir"], ar_heatmap_filename)
+
+        # Convert JET BGR → RGB
+        heatmap_rgb = cv2.cvtColor(heatmap_colored, cv2.COLOR_BGR2RGB)
+
+        # Alpha channel = Grad-CAM activation intensity (0 = transparent, 255 = opaque)
+        # Square the activation so only truly hot areas are visible → cleaner AR overlay
+        alpha_channel = (heatmap * 255).astype(np.uint8)
+        alpha_channel = cv2.GaussianBlur(alpha_channel, (15, 15), 0)  # smooth edges
+
+        # Stack into RGBA
+        rgba_heatmap = np.dstack((
+            heatmap_rgb[:, :, 0],
+            heatmap_rgb[:, :, 1],
+            heatmap_rgb[:, :, 2],
+            alpha_channel
+        ))
+
+        # Save as RGBA PNG (PIL handles RGBA correctly, cv2 does not by default)
+        from PIL import Image as PILImage
+        PILImage.fromarray(rgba_heatmap.astype(np.uint8), 'RGBA').save(ar_heatmap_path)
+
+        # --- Severity metadata for AR HUD ---
+        severity_colors = {
+            0: "#00ff88",   # Green  — Healthy
+            1: "#ffff00",   # Yellow — Mild
+            2: "#ffa500",   # Orange — Moderate
+            3: "#ff4444",   # Red    — Severe
+            4: "#cc00ff"    # Purple — Proliferative
+        }
+        severity_icons = {
+            0: "✅", 1: "⚠️", 2: "⚠️", 3: "🔴", 4: "🚨"
+        }
+        clinical_notes = {
+            0: "No lesions detected. Retina appears healthy.",
+            1: "Mild microaneurysms present. Annual follow-up advised.",
+            2: "Moderate lesions detected. Referral recommended.",
+            3: "Severe hemorrhages detected. Urgent ophthalmology referral.",
+            4: "Proliferative DR. Immediate laser/anti-VEGF treatment required."
+        }
+
         return {
             "prediction": sev_label,
             "class_id": class_id,
-            "confidence": round(confidence * 100, 2),  # percentage
+            "confidence": round(confidence * 100, 2),
+            "severity_color": severity_colors[class_id],
+            "severity_icon": severity_icons[class_id],
+            "clinical_note": clinical_notes[class_id],
             "original_image_url": f"http://localhost:8000/static/uploads/{processed_filename}",
-            "heatmap_image_url":  f"http://localhost:8000/static/heatmaps/{heatmap_filename}"
+            "heatmap_image_url":  f"http://localhost:8000/static/heatmaps/{heatmap_filename}",
+            "ar_heatmap_url":     f"http://localhost:8000/static/heatmaps/{ar_heatmap_filename}"
         }
         
     except Exception as e:
