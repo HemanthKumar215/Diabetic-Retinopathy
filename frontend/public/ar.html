@@ -6,8 +6,10 @@
   <title>RetinaFlow AR | Diabetic Retinopathy Detection</title>
   <meta name="description" content="WebAR Grad-CAM overlay for Diabetic Retinopathy diagnosis using MindAR.js" />
 
-  <!-- MindAR + Three.js from CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"></script>
+  <!-- Three.js MUST load before MindAR -->
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+  <!-- MindAR (image tracking + Three.js bridge) -->
+  <script src="https://unpkg.com/mind-ar@1.2.2/dist/mindar-image-three.prod.js"></script>
 
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -309,10 +311,20 @@
 
   // ── INIT MINDAR ────────────────────────────────────
   async function initMindAR() {
+    // Guard: check MindAR loaded correctly
+    if (!window.MINDAR || !window.MINDAR.IMAGE) {
+      throw new Error('MindAR failed to load from CDN. Check your internet connection and try again.');
+    }
+    if (!window.THREE) {
+      throw new Error('Three.js failed to load. Check your internet connection.');
+    }
+
     const { MindARThree } = window.MINDAR.IMAGE;
     const THREE = window.THREE;
 
     loadingStatus.textContent = 'Loading image targets...';
+
+
 
     mindarThree = new MindARThree({
       container:  mindarContainer,
