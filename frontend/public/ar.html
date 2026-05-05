@@ -112,7 +112,43 @@
                    const compiler = new MINDAR.IMAGE.Compiler();
                    const img = await loadImage(imageUrl);
                    
-                   await compiler.compileImageTargets([img], (progress) => {
+                   // Draw AR tracking frame on a canvas to match laptop screen
+                   const canvas = document.createElement('canvas');
+                   // Keep it square since the UI is aspect-square
+                   const size = Math.max(img.width, img.height);
+                   canvas.width = size;
+                   canvas.height = size;
+                   const ctx = canvas.getContext('2d');
+                   
+                   // Black background
+                   ctx.fillStyle = '#000000';
+                   ctx.fillRect(0, 0, size, size);
+                   
+                   // Draw image in center with padding
+                   const pad = size * 0.05; // ~5% padding
+                   const imgScale = Math.min((size - pad*2) / img.width, (size - pad*2) / img.height);
+                   const w = img.width * imgScale;
+                   const h = img.height * imgScale;
+                   ctx.drawImage(img, (size - w)/2, (size - h)/2, w, h);
+                   
+                   // Draw dashed border
+                   ctx.lineWidth = size * 0.015; // Thick border
+                   ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+                   ctx.setLineDash([size * 0.05, size * 0.05]);
+                   ctx.strokeRect(ctx.lineWidth/2, ctx.lineWidth/2, size - ctx.lineWidth, size - ctx.lineWidth);
+                   
+                   // Draw solid corner markers
+                   ctx.fillStyle = '#FFFFFF';
+                   const cornerSize = size * 0.08;
+                   ctx.fillRect(0, 0, cornerSize, cornerSize); // Top-left
+                   ctx.fillRect(size - cornerSize, 0, cornerSize, cornerSize); // Top-right
+                   ctx.fillRect(0, size - cornerSize, cornerSize, cornerSize); // Bottom-left
+                   ctx.fillRect(size - cornerSize, size - cornerSize, cornerSize, cornerSize); // Bottom-right
+
+                   // Load canvas as image for compiler
+                   const compImg = await loadImage(canvas.toDataURL('image/png'));
+                   
+                   await compiler.compileImageTargets([compImg], (progress) => {
                        compileText.innerText = `Compiling AR Target: ${(progress * 100).toFixed(0)}%`;
                    });
                    

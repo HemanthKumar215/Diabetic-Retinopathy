@@ -79,12 +79,18 @@ export default function ResultLens({ appState, result, onReset }) {
 
   const renderLens = (showHeatmapLayer, disableSlider) => (
     <div 
-        className="w-full aspect-square relative bg-black border border-slate-700/50 rounded-2xl overflow-hidden"
+        className="w-full aspect-square relative bg-black border-[6px] border-dashed border-white/70 rounded-none overflow-hidden"
     >
+        {/* AR Tracking Frame Markers */}
+        <div className="absolute top-0 left-0 w-8 h-8 bg-white z-20"></div>
+        <div className="absolute top-0 right-0 w-8 h-8 bg-white z-20"></div>
+        <div className="absolute bottom-0 left-0 w-8 h-8 bg-white z-20"></div>
+        <div className="absolute bottom-0 right-0 w-8 h-8 bg-white z-20"></div>
+
         {/* Original Base Image */}
         <img 
           src={result.original_image_url} 
-          className="absolute inset-0 w-full h-full object-contain" 
+          className="absolute inset-0 w-full h-full object-contain p-2" 
           alt="Original" 
         />
         
@@ -92,7 +98,7 @@ export default function ResultLens({ appState, result, onReset }) {
         {showHeatmapLayer && (
             <img 
               src={result.heatmap_image_url} 
-              className="absolute inset-0 w-full h-full object-contain transition-all duration-300"
+              className="absolute inset-0 w-full h-full object-contain p-2 transition-all duration-300 z-10"
               style={{ 
                 opacity: showHeatmap ? (disableSlider ? 1 : heatmapOpacity) : 0,
                 filter: invertHeatmap ? 'invert(1) hue-rotate(180deg)' : 'none',
