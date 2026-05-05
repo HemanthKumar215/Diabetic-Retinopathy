@@ -244,10 +244,19 @@ async def predict(request: Request, file: UploadFile = File(...)):
             cam_engine = ViTGradCAM(model)
             heatmap, sev_label, class_id, confidence = cam_engine.generate_heatmap(input_tensor)
 
-        # --- Save the clean preprocessed image for compare mode ---
+        # --- Add High-Contrast AR Tracking Corners to Images ---
+        # This solves the issue of fundus images lacking trackable features.
+        tracking_img = original_img.copy()
+        h, w = tracking_img.shape[:2]
+        s = int(w * 0.12) # 12% corner size
+        # Top-left, Top-right, Bottom-left, Bottom-right
+        for pt1, pt2 in [((0, 0), (s, s)), ((w - s, 0), (w, s)), ((0, h - s), (s, h)), ((w - s, h - s), (w, h))]:
+            cv2.rectangle(tracking_img, pt1, pt2, (255, 255, 255), -1)
+
+        # --- Save the tracked preprocessed image for compare mode ---
         processed_filename = f"processed_{file_id}.png"
         processed_path = os.path.join(CONFIG["uploads_dir"], processed_filename)
-        cv2.imwrite(processed_path, cv2.cvtColor(original_img, cv2.COLOR_RGB2BGR))
+        cv2.imwrite(processed_path, cv2.cvtColor(tracking_img, cv2.COLOR_RGB2BGR))
 
         # --- Generate flat Grad-CAM overlay (for flat UI compare mode) ---
         heatmap_filename = f"heatmap_{file_id}.png"
@@ -258,8 +267,14 @@ async def predict(request: Request, file: UploadFile = File(...)):
         heatmap_colored = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)   # BGR
 
         # Blend: 55% original + 45% heatmap  (flat UI)
-        original_bgr = cv2.cvtColor(original_img, cv2.COLOR_RGB2BGR)
-        overlay_bgr  = cv2.addWeighted(original_bgr, 0.55, heatmap_colored, 0.45, 0)
+        # Use the tracking_img so the corners are preserved!
+        tracking_bgr = cv2.cvtColor(tracking_img, cv2.COLOR_RGB2BGR)
+        overlay_bgr  = cv2.addWeighted(tracking_bgr, 0.55, heatmap_colored, 0.45, 0)
+        
+        # Redraw pure white corners over the heatmap overlay to ensure maximum contrast
+        for pt1, pt2 in [((0, 0), (s, s)), ((w - s, 0), (w, s)), ((0, h - s), (s, h)), ((w - s, h - s), (w, h))]:
+            cv2.rectangle(overlay_bgr, pt1, pt2, (255, 255, 255), -1)
+
         cv2.imwrite(heatmap_path, overlay_bgr)
 
         # --- Generate TRANSPARENT RGBA heatmap PNG for WebAR Three.js texture ---
