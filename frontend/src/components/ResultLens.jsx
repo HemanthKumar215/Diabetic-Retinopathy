@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Activity, ShieldAlert, CheckCircle, AlertTriangle, SlidersHorizontal, LayoutTemplate, Glasses } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 
 const SEVERITY = {
   0: { label: "No DR (Healthy)", color: "text-neon-cyan", bg: "bg-cyan-900/30", border: "border-cyan-500", icon: CheckCircle },
@@ -56,15 +57,16 @@ export default function ResultLens({ appState, result, onReset }) {
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (progressValue / 100) * circumference;
 
+  const params = new URLSearchParams({
+    heatmap:    result?.ar_heatmap_url || result?.heatmap_image_url || '',
+    grade:      result?.class_id || 0,
+    confidence: result?.confidence || 0,
+  });
+  const arUrlPath = `/ar.html?${params.toString()}`;
+  const absoluteArUrl = typeof window !== 'undefined' ? `${window.location.origin}${arUrlPath}` : arUrlPath;
+
   const openAR = () => {
-    const params = new URLSearchParams({
-      heatmap:    result.ar_heatmap_url || result.heatmap_image_url,
-      class_id:   result.class_id,
-      confidence: result.confidence,
-      prediction: result.prediction,
-      clinical:   result.clinical_note || '',
-    });
-    window.open(`/ar.html?${params.toString()}`, '_blank');
+    window.open(arUrlPath, '_blank');
   };
 
   const renderLens = (showHeatmapLayer, disableSlider) => (
@@ -218,21 +220,37 @@ export default function ResultLens({ appState, result, onReset }) {
                   Initiate New Scan
                </button>
 
-               {/* AR Mode Button */}
-               <button
-                  onClick={openAR}
-                  className="w-full mt-3 py-4 sm:py-5 uppercase tracking-widest text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-3
-                    bg-gradient-to-r from-violet-600/30 to-cyan-600/30
-                    border border-violet-500/50 text-violet-300
-                    hover:from-violet-600/50 hover:to-cyan-600/50
-                    hover:border-violet-400 hover:text-white
-                    shadow-[0_0_20px_-5px_rgba(139,92,246,0.4)]
-                    hover:shadow-[0_0_40px_0px_rgba(139,92,246,0.6)]
-                    hover:-translate-y-1"
-               >
-                  <Glasses size={18} />
-                  View in AR
-               </button>
+               {/* Cross-Device AR Section */}
+               <div className="mt-4 p-4 rounded-xl bg-slate-900/60 border border-slate-700/50 flex flex-col items-center">
+                  <p className="text-slate-400 font-mono text-[10px] sm:text-xs tracking-[0.1em] uppercase mb-3 text-center">
+                    Scan to view AR on Mobile
+                  </p>
+                  <div className="bg-white p-2 rounded-xl mb-3 shadow-[0_0_20px_rgba(6,182,212,0.15)] transition-transform hover:scale-105">
+                    <QRCodeSVG value={absoluteArUrl} size={110} />
+                  </div>
+                  
+                  <div className="flex items-center gap-3 w-full text-center mt-1 mb-2">
+                    <div className="flex-1 h-px bg-slate-700/50"></div>
+                    <span className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">OR</span>
+                    <div className="flex-1 h-px bg-slate-700/50"></div>
+                  </div>
+
+                  {/* Local AR Mode Button */}
+                  <button
+                     onClick={openAR}
+                     className="w-full mt-1 py-3 uppercase tracking-widest text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-3
+                       bg-gradient-to-r from-violet-600/30 to-cyan-600/30
+                       border border-violet-500/50 text-violet-300
+                       hover:from-violet-600/50 hover:to-cyan-600/50
+                       hover:border-violet-400 hover:text-white
+                       shadow-[0_0_20px_-5px_rgba(139,92,246,0.4)]
+                       hover:shadow-[0_0_40px_0px_rgba(139,92,246,0.6)]
+                       hover:-translate-y-1"
+                  >
+                     <Glasses size={16} />
+                     Launch AR Here
+                  </button>
+               </div>
             </div>
           </div>
       </div>

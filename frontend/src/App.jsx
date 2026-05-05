@@ -34,9 +34,8 @@ export default function App() {
     await minimumDelay;
 
     if (!hasError && backendResult) {
-      const res = backendResult;
-      const arUrl = `/ar.html?grade=${res.class_id}&confidence=${(res.confidence/100).toFixed(4)}&image=${encodeURIComponent(res.original_image_url)}&heatmap=${encodeURIComponent(res.ar_heatmap_url || res.heatmap_image_url)}`;
-      window.location.href = arUrl;
+      setResult(backendResult);
+      setAppState('RESULT');
     } else {
        setAppState('UPLOAD'); 
     }
