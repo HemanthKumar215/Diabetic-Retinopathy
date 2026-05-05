@@ -60,21 +60,47 @@
       }
     </style>
   </head>
-  <body>
-    <div id="compiling-ui">
-      <div class="compile-loader"></div>
-      <div id="compile-text" style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">Initializing AI Engine...</div>
-      <div style="font-size: 12px; color: #64748b;">Generating AR tracking footprint</div>
-    </div>
-
-    <div id="ui-layer" style="display:none;">
+    <div id="ui-layer">
       <div class="title">Retina<span>Flow</span> AR</div>
-      <div class="subtitle">Point camera at the exact image on your laptop screen to view AI diagnosis.</div>
+      <div class="subtitle" id="subtitle-text">Point camera at the AR Marker on your laptop.</div>
     </div>
     
-    <a href="javascript:history.back()" id="back-btn" style="display:none;">← Close AR View</a>
+    <a href="javascript:history.back()" id="back-btn">← Close AR View</a>
 
-    <div id="scene-container"></div>
+    <!-- Static A-Frame Scene to prevent iOS layout bugs -->
+    <a-scene 
+      mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiError:yes; uiLoading:yes; uiScanning:no;" 
+      color-space="sRGB" 
+      renderer="colorManagement: true, physicallyCorrectLights" 
+      vr-mode-ui="enabled: false" 
+      device-orientation-permission-ui="enabled: false">
+      
+      <a-assets>
+        <img id="base-img" src="" crossorigin="anonymous">
+        <img id="heatmap-tex" src="" crossorigin="anonymous">
+      </a-assets>
+
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+      <a-entity mindar-image-target="targetIndex: 0">
+        <!-- The AR dashboard floating above the marker -->
+        <a-entity position="0 0.8 0" scale="1.2 1.2 1.2">
+          <!-- Base Eye Image -->
+          <a-plane id="plane-base" src="#base-img" position="0 0 0" height="1" width="1" rotation="0 0 0"></a-plane>
+          
+          <!-- Heatmap Overlay -->
+          <a-plane id="plane-heatmap" src="#heatmap-tex" position="0 0 0.01" height="1" width="1" rotation="0 0 0" opacity="0.85" material="transparent: true; alphaTest: 0.1;" visible="false"></a-plane>
+          
+          <!-- Diagnostic Text -->
+          <a-entity position="0 0.65 0">
+            <a-plane width="1.2" height="0.2" color="#000" opacity="0.8" position="0 0 -0.01" material="transparent: true"></a-plane>
+            <a-text id="grade-text" value="LOADING..." align="center" position="0 0 0" scale="0.6 0.6 0.6" color="#fff" font="kelsonsans"></a-text>
+          </a-entity>
+          
+          <a-plane id="plane-border" position="0 0 0.02" width="1" height="1" material="shader: flat; wireframe: true; opacity: 0.5"></a-plane>
+        </a-entity>
+      </a-entity>
+    </a-scene>
 
     <script>
        const params = new URLSearchParams(window.location.search);
@@ -91,92 +117,20 @@
        };
        const meta = GRADE_META[grade] || GRADE_META['0'];
 
-       function loadImage(src) {
-         return new Promise((res, rej) => {
-           const img = new Image();
-           // Removed crossOrigin="anonymous" because we are fetching from the same origin (Vite proxy)
-           // This prevents potential FastAPI StaticFiles CORS stripping issues.
-           img.onload = () => res(img);
-           img.onerror = (err) => rej(new Error("Failed to load image from " + src));
-           img.src = src;
-         });
-       }
-
-       async function startAR() {
-           const compileText = document.getElementById('compile-text');
-           let targetSrc = './targets.mind'; // Fallback
-
+       // Dynamically update the A-Frame assets and components
+       document.addEventListener('DOMContentLoaded', () => {
            if (imageUrl) {
-               try {
-                   compileText.innerText = 'Downloading AR Anchor...';
-                   const compiler = new MINDAR.IMAGE.Compiler();
-                   const img = await loadImage('/ar_anchor.jpg');
-                   
-                   await compiler.compileImageTargets([img], (progress) => {
-                       compileText.innerText = `Compiling AR Target: ${(progress * 100).toFixed(0)}%`;
-                   });
-                   
-                   compileText.innerText = 'Finalizing...';
-                   const buffer = await compiler.exportData();
-                   const blob = new Blob([buffer]);
-                   targetSrc = URL.createObjectURL(blob);
-                   
-                   // Modify subtitle to show dynamic compilation worked
-                   document.querySelector('.subtitle').innerText = "Dynamic Target Ready! Point camera at the geometric AR Marker on your laptop.";
-                   document.querySelector('.subtitle').style.color = "#10b981"; // Green to indicate success
-               } catch(e) {
-                   console.error("Compilation error:", e);
-                   alert("Failed to dynamically compile the AR target. Falling back to old target. Error: " + e.message);
-               }
+               document.getElementById('base-img').setAttribute('src', imageUrl);
            }
-
-           // Hide compiler UI and show main UI
-           document.getElementById('compiling-ui').style.display = 'none';
-           document.getElementById('ui-layer').style.display = 'block';
-           document.getElementById('back-btn').style.display = 'block';
-
-           // Inject A-Frame Scene dynamically
-           // We explicitly disable uiScanning so the screen doesn't go dark
-           const sceneHTML = `
-             <a-scene 
-               mindar-image="imageTargetSrc: ${targetSrc}; autoStart: true; uiError:yes; uiLoading:yes; uiScanning:no;" 
-               color-space="sRGB" 
-               renderer="colorManagement: true, physicallyCorrectLights" 
-               vr-mode-ui="enabled: false" 
-               device-orientation-permission-ui="enabled: false">
-               
-               <a-assets>
-                 <img id="base-img" src="${imageUrl}">
-                 <img id="heatmap-tex" src="${heatmapUrl || ''}">
-               </a-assets>
-
-               <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-
-               <a-entity mindar-image-target="targetIndex: 0">
-                 <!-- The AR dashboard floating above the marker -->
-                 <a-entity position="0 0.8 0" scale="1.2 1.2 1.2">
-                   <!-- Base Eye Image -->
-                   <a-plane src="#base-img" position="0 0 0" height="1" width="1" rotation="0 0 0"></a-plane>
-                   <!-- Heatmap Overlay -->
-                   ${heatmapUrl ? '<a-plane src="#heatmap-tex" position="0 0 0.01" height="1" width="1" rotation="0 0 0" opacity="0.85" material="transparent: true; alphaTest: 0.1;"></a-plane>' : ''}
-                   
-                   <!-- Diagnostic Text -->
-                   <a-entity position="0 0.65 0">
-                     <a-plane width="1.2" height="0.2" color="#000" opacity="0.8" position="0 0 -0.01" material="transparent: true"></a-plane>
-                     <a-text value="GRADE ${grade}: ${meta.name.toUpperCase()}" align="center" position="0 0 0" scale="0.6 0.6 0.6" color="${meta.color}" font="kelsonsans"></a-text>
-                   </a-entity>
-                   
-                   <a-plane position="0 0 0.02" width="1" height="1" material="shader: flat; color: ${meta.color}; wireframe: true; opacity: 0.5"></a-plane>
-                 </a-entity>
-               </a-entity>
-             </a-scene>
-           `;
+           if (heatmapUrl) {
+               document.getElementById('heatmap-tex').setAttribute('src', heatmapUrl);
+               document.getElementById('plane-heatmap').setAttribute('visible', 'true');
+           }
            
-           document.getElementById('scene-container').innerHTML = sceneHTML;
-       }
-
-       // Start the pipeline
-       startAR();
+           document.getElementById('grade-text').setAttribute('value', `GRADE ${grade}: ${meta.name.toUpperCase()}`);
+           document.getElementById('grade-text').setAttribute('color', meta.color);
+           document.getElementById('plane-border').setAttribute('color', meta.color);
+       });
     </script>
   </body>
 </html>
