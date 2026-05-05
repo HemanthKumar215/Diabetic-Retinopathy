@@ -58,12 +58,20 @@ export default function ResultLens({ appState, result, onReset }) {
   const strokeDashoffset = circumference - (progressValue / 100) * circumference;
 
   const params = new URLSearchParams({
+    image:      result?.original_image_url || '',
     heatmap:    result?.ar_heatmap_url || result?.heatmap_image_url || '',
     grade:      result?.class_id || 0,
     confidence: result?.confidence || 0,
   });
   const arUrlPath = `/ar.html?${params.toString()}`;
-  const absoluteArUrl = typeof window !== 'undefined' ? `${window.location.origin}${arUrlPath}` : arUrlPath;
+  
+  // Use the injected network IP if available, otherwise fallback to origin
+  const hostname = typeof window !== 'undefined' && window.location.hostname === 'localhost' && typeof __LOCAL_IP__ !== 'undefined' 
+    ? __LOCAL_IP__ 
+    : (typeof window !== 'undefined' ? window.location.hostname : 'localhost');
+    
+  const baseUrl = typeof window !== 'undefined' ? `${window.location.protocol}//${hostname}:${window.location.port}` : '';
+  const absoluteArUrl = `${baseUrl}${arUrlPath}`;
 
   const openAR = () => {
     window.open(arUrlPath, '_blank');

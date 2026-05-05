@@ -6,7 +6,7 @@
     <!-- A-Frame and MindAR for WebAR tracking -->
     <script src="./aframe.min.js"></script>
     <script src="./mindar-image-aframe.prod.js"></script>
-    <style>
+  <style>
       body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; }
       
       #ui-layer {
@@ -46,75 +46,124 @@
       /* MindAR loading screen override */
       .mindar-ui-overlay { background: rgba(0,0,0,0.8); }
       .mindar-ui-loading .loader { border-top-color: #06b6d4 !important; }
+
+      /* Dynamic Compiler UI */
+      #compiling-ui {
+        position: absolute; inset: 0; background: #000; color: #06b6d4;
+        z-index: 999; display: flex; flex-direction: column; align-items: center; justify-content: center;
+        font-family: monospace; text-align: center;
+      }
+      @keyframes spin { 100% { transform: rotate(360deg); } }
+      .compile-loader {
+        border: 4px solid #333; border-top: 4px solid #06b6d4; border-radius: 50%;
+        width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px;
+      }
     </style>
   </head>
   <body>
-    <div id="ui-layer">
+    <div id="compiling-ui">
+      <div class="compile-loader"></div>
+      <div id="compile-text" style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">Initializing AI Engine...</div>
+      <div style="font-size: 12px; color: #64748b;">Generating AR tracking footprint</div>
+    </div>
+
+    <div id="ui-layer" style="display:none;">
       <div class="title">Retina<span>Flow</span> AR</div>
-      <div class="subtitle">Point camera at the printed fundus image to view AI diagnosis.</div>
+      <div class="subtitle">Point camera at the exact image on your laptop screen to view AI diagnosis.</div>
     </div>
     
-    <a href="javascript:history.back()" id="back-btn">← Close AR View</a>
+    <a href="javascript:history.back()" id="back-btn" style="display:none;">← Close AR View</a>
 
-    <!-- AR Scene (requires targets.mind in the public folder) -->
-    <a-scene 
-      mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiError:yes; uiLoading:yes; uiScanning:yes;" 
-      color-space="sRGB" 
-      renderer="colorManagement: true, physicallyCorrectLights" 
-      vr-mode-ui="enabled: false" 
-      device-orientation-permission-ui="enabled: false">
-      
-      <a-assets>
-        <img id="heatmap-tex" src="" crossorigin="anonymous">
-      </a-assets>
-
-      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-
-      <a-entity mindar-image-target="targetIndex: 0">
-        
-        <!-- Background Plane to darken the original image slightly -->
-        <a-plane position="0 0 0" height="1" width="1" rotation="0 0 0" color="#000" opacity="0.3" material="transparent: true"></a-plane>
-
-        <!-- Overlay Heatmap exactly over the target image -->
-        <a-plane id="heatmap-plane" src="#heatmap-tex" position="0 0 0" height="1" width="1" rotation="0 0 0" opacity="0.85" material="transparent: true; alphaTest: 0.1;"></a-plane>
-        
-        <!-- Text for Grade (Marked on image) -->
-        <a-entity position="0 0.65 0">
-          <a-plane width="1.2" height="0.2" color="#000" opacity="0.7" position="0 0 -0.01" material="transparent: true"></a-plane>
-          <a-text id="grade-text" value="Detecting Grade..." align="center" position="0 0 0" scale="0.6 0.6 0.6" color="#06b6d4" font="kelsonsans"></a-text>
-        </a-entity>
-        
-        <!-- Scanning Box effect -->
-        <a-plane position="0 0 0.01" width="1" height="1" material="shader: flat; color: #06b6d4; wireframe: true; opacity: 0.5"></a-plane>
-
-      </a-entity>
-    </a-scene>
+    <div id="scene-container"></div>
 
     <script>
-       // Read URL params passed from the frontend
        const params = new URLSearchParams(window.location.search);
        const grade = params.get('grade') || '0';
        const heatmapUrl = params.get('heatmap') || '';
+       const imageUrl = params.get('image') || '';
        
        const GRADE_META = {
-         '0': { name: 'No DR (Healthy)', color: '#10b981' }, // Emerald
-         '1': { name: 'Mild NPDR', color: '#facc15' },      // Yellow
-         '2': { name: 'Moderate NPDR', color: '#fb923c' },  // Orange
-         '3': { name: 'Severe NPDR', color: '#ef4444' },    // Red
-         '4': { name: 'Proliferative DR', color: '#b91c1c' }// Dark Red
+         '0': { name: 'No DR (Healthy)', color: '#10b981' },
+         '1': { name: 'Mild NPDR', color: '#facc15' },
+         '2': { name: 'Moderate NPDR', color: '#fb923c' },
+         '3': { name: 'Severe NPDR', color: '#ef4444' },
+         '4': { name: 'Proliferative DR', color: '#b91c1c' }
        };
-
        const meta = GRADE_META[grade] || GRADE_META['0'];
 
-       // Apply heatmap texture
-       if (heatmapUrl) {
-           document.getElementById('heatmap-tex').src = heatmapUrl;
+       function loadImage(src) {
+         return new Promise((res, rej) => {
+           const img = new Image();
+           img.crossOrigin = "anonymous";
+           img.onload = () => res(img);
+           img.onerror = rej;
+           img.src = src;
+         });
        }
 
-       // Update Grade Text
-       const gradeText = document.getElementById('grade-text');
-       gradeText.setAttribute('value', `GRADE ${grade}: ${meta.name.toUpperCase()}`);
-       gradeText.setAttribute('color', meta.color);
+       async function startAR() {
+           const compileText = document.getElementById('compile-text');
+           let targetSrc = './targets.mind'; // Fallback
+
+           if (imageUrl) {
+               try {
+                   compileText.innerText = 'Downloading Source Image...';
+                   const compiler = new MINDAR.IMAGE.Compiler();
+                   const img = await loadImage(imageUrl);
+                   
+                   await compiler.compileImageTargets([img], (progress) => {
+                       compileText.innerText = `Compiling AR Target: ${(progress * 100).toFixed(0)}%`;
+                   });
+                   
+                   compileText.innerText = 'Finalizing...';
+                   const buffer = await compiler.exportData();
+                   const blob = new Blob([buffer]);
+                   targetSrc = URL.createObjectURL(blob);
+               } catch(e) {
+                   console.error("Compilation error:", e);
+                   // Fallback to static target on error
+               }
+           }
+
+           // Hide compiler UI and show main UI
+           document.getElementById('compiling-ui').style.display = 'none';
+           document.getElementById('ui-layer').style.display = 'block';
+           document.getElementById('back-btn').style.display = 'block';
+
+           // Inject A-Frame Scene dynamically
+           const sceneHTML = `
+             <a-scene 
+               mindar-image="imageTargetSrc: ${targetSrc}; autoStart: true; uiError:yes; uiLoading:yes; uiScanning:yes;" 
+               color-space="sRGB" 
+               renderer="colorManagement: true, physicallyCorrectLights" 
+               vr-mode-ui="enabled: false" 
+               device-orientation-permission-ui="enabled: false">
+               
+               <a-assets>
+                 <img id="heatmap-tex" src="${heatmapUrl || ''}" crossorigin="anonymous">
+               </a-assets>
+
+               <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+               <a-entity mindar-image-target="targetIndex: 0">
+                 <a-plane position="0 0 0" height="1" width="1" rotation="0 0 0" color="#000" opacity="0.3" material="transparent: true"></a-plane>
+                 ${heatmapUrl ? '<a-plane src="#heatmap-tex" position="0 0 0" height="1" width="1" rotation="0 0 0" opacity="0.85" material="transparent: true; alphaTest: 0.1;"></a-plane>' : ''}
+                 
+                 <a-entity position="0 0.65 0">
+                   <a-plane width="1.2" height="0.2" color="#000" opacity="0.7" position="0 0 -0.01" material="transparent: true"></a-plane>
+                   <a-text value="GRADE ${grade}: ${meta.name.toUpperCase()}" align="center" position="0 0 0" scale="0.6 0.6 0.6" color="${meta.color}" font="kelsonsans"></a-text>
+                 </a-entity>
+                 
+                 <a-plane position="0 0 0.01" width="1" height="1" material="shader: flat; color: ${meta.color}; wireframe: true; opacity: 0.5"></a-plane>
+               </a-entity>
+             </a-scene>
+           `;
+           
+           document.getElementById('scene-container').innerHTML = sceneHTML;
+       }
+
+       // Start the pipeline
+       startAR();
     </script>
   </body>
 </html>
