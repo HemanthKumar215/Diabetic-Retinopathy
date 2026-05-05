@@ -136,9 +136,10 @@
            document.getElementById('back-btn').style.display = 'block';
 
            // Inject A-Frame Scene dynamically
+           // We explicitly disable uiScanning so the screen doesn't go dark
            const sceneHTML = `
              <a-scene 
-               mindar-image="imageTargetSrc: ${targetSrc}; autoStart: true; uiError:yes; uiLoading:yes; uiScanning:yes;" 
+               mindar-image="imageTargetSrc: ${targetSrc}; autoStart: true; uiError:yes; uiLoading:yes; uiScanning:no;" 
                color-space="sRGB" 
                renderer="colorManagement: true, physicallyCorrectLights" 
                vr-mode-ui="enabled: false" 
