@@ -94,9 +94,10 @@
        function loadImage(src) {
          return new Promise((res, rej) => {
            const img = new Image();
-           img.crossOrigin = "anonymous";
+           // Removed crossOrigin="anonymous" because we are fetching from the same origin (Vite proxy)
+           // This prevents potential FastAPI StaticFiles CORS stripping issues.
            img.onload = () => res(img);
-           img.onerror = rej;
+           img.onerror = (err) => rej(new Error("Failed to load image from " + src));
            img.src = src;
          });
        }
@@ -119,9 +120,13 @@
                    const buffer = await compiler.exportData();
                    const blob = new Blob([buffer]);
                    targetSrc = URL.createObjectURL(blob);
+                   
+                   // Modify subtitle to show dynamic compilation worked
+                   document.querySelector('.subtitle').innerText = "Dynamic Target Ready! Point camera at the exact image on your laptop screen.";
+                   document.querySelector('.subtitle').style.color = "#10b981"; // Green to indicate success
                } catch(e) {
                    console.error("Compilation error:", e);
-                   // Fallback to static target on error
+                   alert("Failed to dynamically compile the AR target. Falling back to old target. Error: " + e.message);
                }
            }
 
@@ -140,7 +145,7 @@
                device-orientation-permission-ui="enabled: false">
                
                <a-assets>
-                 <img id="heatmap-tex" src="${heatmapUrl || ''}" crossorigin="anonymous">
+                 <img id="heatmap-tex" src="${heatmapUrl || ''}">
                </a-assets>
 
                <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
