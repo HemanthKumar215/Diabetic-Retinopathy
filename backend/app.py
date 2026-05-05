@@ -12,7 +12,7 @@ import asyncio
 # e.g. export BASE_URL=http://YOUR_DROPLET_IP
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:8000")
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from torchvision import transforms
@@ -218,7 +218,7 @@ class ViTGradCAM:
 # API ENDPOINTS
 # ==========================================
 @app.post("/predict")
-async def predict(file: UploadFile = File(...)):
+async def predict(request: Request, file: UploadFile = File(...)):
     if model is None:
         raise HTTPException(status_code=503, detail="Model is not loaded.")
         
@@ -312,9 +312,9 @@ async def predict(file: UploadFile = File(...)):
             "severity_color": severity_colors[class_id],
             "severity_icon": severity_icons[class_id],
             "clinical_note": clinical_notes[class_id],
-            "original_image_url": f"{BASE_URL}/static/uploads/{processed_filename}",
-            "heatmap_image_url":  f"{BASE_URL}/static/heatmaps/{heatmap_filename}",
-            "ar_heatmap_url":     f"{BASE_URL}/static/heatmaps/{ar_heatmap_filename}"
+            "original_image_url": f"/static/uploads/{processed_filename}",
+            "heatmap_image_url":  f"/static/heatmaps/{heatmap_filename}",
+            "ar_heatmap_url":     f"/static/heatmaps/{ar_heatmap_filename}"
         }
         
     except Exception as e:

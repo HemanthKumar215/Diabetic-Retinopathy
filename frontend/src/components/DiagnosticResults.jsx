@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldAlert, Activity, CheckCircle, AlertTriangle } from 'lucide-react';
+import { ShieldAlert, Activity, CheckCircle, AlertTriangle, Layers } from 'lucide-react';
 
 const SEVERITY_CONFIG = {
   0: { label: "No DR (Healthy)", color: "text-emerald-400", bg: "bg-emerald-900/30", border: "border-emerald-500/50", bar: "bg-emerald-400", icon: CheckCircle },
@@ -71,6 +71,25 @@ export default function DiagnosticResults({ result, isProcessing }) {
             <img src={result.heatmap_image_url} alt="Grad-CAM Heatmap" className="rounded-lg shadow-2xl max-h-[400px] object-contain border border-slate-700/50" />
           </div>
         </div>
+      </div>
+
+      {/* AR Overlay Button */}
+      <div className="mt-8 flex justify-center">
+        <a
+          href={`/ar.html?grade=${result.class_id}&confidence=${(result.confidence/100).toFixed(4)}&image=${encodeURIComponent(result.original_image_url)}&heatmap=${encodeURIComponent(result.ar_heatmap_url || result.heatmap_image_url)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 px-8 py-4 rounded-2xl font-bold text-white transition-all duration-300"
+          style={{
+            background: 'linear-gradient(135deg, rgba(6,182,212,0.2), rgba(129,140,248,0.2))',
+            border: '1px solid rgba(6,182,212,0.5)',
+            boxShadow: '0 0 30px rgba(6,182,212,0.15)',
+          }}
+        >
+          <Layers size={20} style={{ color: '#06b6d4' }} />
+          <span>View AR Diagnostic Overlay</span>
+          <span style={{ fontSize: '0.75rem', opacity: 0.6, marginLeft: '4px' }}>→</span>
+        </a>
       </div>
     </div>
   );

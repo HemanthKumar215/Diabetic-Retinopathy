@@ -17,13 +17,11 @@ export default function App() {
     const formData = new FormData();
     formData.append('file', file);
     const minimumDelay = new Promise(resolve => setTimeout(resolve, 2800)); 
-    
     let backendResult = null;
     let hasError = false;
 
     try {
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-    const response = await axios.post(`${API_URL}/predict`, formData, {
+      const response = await axios.post(`/predict`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       backendResult = response.data;
@@ -36,8 +34,9 @@ export default function App() {
     await minimumDelay;
 
     if (!hasError && backendResult) {
-       setResult(backendResult);
-       setAppState('RESULT');
+      const res = backendResult;
+      const arUrl = `/ar.html?grade=${res.class_id}&confidence=${(res.confidence/100).toFixed(4)}&image=${encodeURIComponent(res.original_image_url)}&heatmap=${encodeURIComponent(res.ar_heatmap_url || res.heatmap_image_url)}`;
+      window.location.href = arUrl;
     } else {
        setAppState('UPLOAD'); 
     }
@@ -54,7 +53,7 @@ export default function App() {
         <div className="flex items-center gap-3">
           <Network className="text-neon-cyan drop-shadow-[0_0_5px_rgba(6,182,212,0.8)]" size={32} />
           <span className="font-bold text-2xl tracking-tight text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
-            Retina<span className="text-neon-cyan">AI</span>
+            Retina<span className="text-neon-cyan">Flow</span>
           </span>
         </div>
         <div className="text-[10px] md:text-sm font-mono text-neon-cyan uppercase tracking-[0.3em] font-light">
@@ -69,7 +68,7 @@ export default function App() {
           appState === 'RESULT' ? 'h-0 opacity-0 -translate-y-10 scale-90 overflow-hidden' : 'opacity-100 translate-y-0 scale-100 mb-6'
         }`}>
           <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-white drop-shadow-xl mb-3 text-center">
-            Diabetic Retinopathy Detection
+            RetinaFlow
           </h1>
           <p className="text-sm md:text-lg text-slate-400 font-light tracking-wide text-center">
             AI-powered retinal analysis with real-time heatmap visualization

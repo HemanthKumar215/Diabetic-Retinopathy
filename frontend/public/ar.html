@@ -1,533 +1,120 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>RetinaFlow AR | Diabetic Retinopathy Detection</title>
-  <meta name="description" content="WebAR Grad-CAM overlay for Diabetic Retinopathy diagnosis using MindAR.js" />
-
-  <!-- Three.js MUST load before MindAR -->
-  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
-  <!-- MindAR (image tracking + Three.js bridge) -->
-  <script src="https://unpkg.com/mind-ar@1.2.2/dist/mindar-image-three.prod.js"></script>
-
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
-
-    #loading-screen {
-      position: fixed; inset: 0; z-index: 9999;
-      background: linear-gradient(135deg, #0a0a1a 0%, #0d1b2a 100%);
-      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px;
-    }
-    #loading-screen .logo { font-size: 2rem; font-weight: 900; color: #fff; letter-spacing: -0.03em; }
-    #loading-screen .logo span { color: #06b6d4; }
-    #loading-screen .subtitle { font-size: 0.75rem; color: #64748b; letter-spacing: 0.3em; text-transform: uppercase; }
-    .spinner { width: 48px; height: 48px; border: 3px solid rgba(6,182,212,0.2); border-top-color: #06b6d4; border-radius: 50%; animation: spin 0.8s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    #loading-status { font-size: 0.75rem; color: #475569; font-family: monospace; }
-
-    /* Top Navbar */
-    #navbar {
-      position: fixed; top: 0; left: 0; right: 0; z-index: 500;
-      padding: 12px 20px;
-      display: flex; justify-content: space-between; align-items: center;
-      background: linear-gradient(to bottom, rgba(0,0,0,0.85), transparent);
-      pointer-events: none;
-    }
-    #navbar .brand { display: flex; align-items: center; gap: 10px; }
-    #navbar .brand-name { font-size: 1.1rem; font-weight: 800; color: #fff; letter-spacing: -0.02em; }
-    #navbar .brand-name span { color: #06b6d4; }
-    #navbar .badge { font-size: 0.6rem; color: #06b6d4; letter-spacing: 0.3em; text-transform: uppercase; border: 1px solid rgba(6,182,212,0.4); padding: 3px 8px; border-radius: 4px; }
-
-    /* AR Status Banner */
-    #ar-status {
-      position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
-      z-index: 500; pointer-events: none;
-      display: flex; align-items: center; gap: 10px;
-      padding: 8px 18px; border-radius: 24px;
-      background: rgba(0,0,0,0.7); border: 1px solid rgba(6,182,212,0.4);
-      backdrop-filter: blur(10px);
-    }
-    #ar-status .dot { width: 8px; height: 8px; border-radius: 50%; background: #06b6d4; animation: pulse-dot 1.5s infinite; }
-    @keyframes pulse-dot { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.7); } }
-    #ar-status-text { font-size: 0.7rem; color: #94a3b8; font-family: monospace; letter-spacing: 0.1em; }
-
-    /* Floating Result HUD (shown after scan detected) */
-    #result-hud {
-      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-      z-index: 500; width: min(94vw, 420px);
-      background: rgba(8, 12, 22, 0.92); backdrop-filter: blur(20px);
-      border-radius: 20px; border: 1px solid rgba(255,255,255,0.08);
-      box-shadow: 0 20px 60px rgba(0,0,0,0.8), 0 0 40px rgba(6,182,212,0.1);
-      padding: 0;
-      opacity: 0; pointer-events: none;
-      transition: opacity 0.5s ease, transform 0.5s ease;
-      transform: translateX(-50%) translateY(20px);
-    }
-    #result-hud.visible {
-      opacity: 1; pointer-events: auto;
-      transform: translateX(-50%) translateY(0);
-    }
-
-    .hud-header {
-      padding: 16px 20px 12px;
-      border-bottom: 1px solid rgba(255,255,255,0.06);
-      display: flex; justify-content: space-between; align-items: center;
-    }
-    .hud-label { font-size: 0.6rem; color: #64748b; font-family: monospace; letter-spacing: 0.3em; text-transform: uppercase; }
-    .hud-live { display: flex; align-items: center; gap: 6px; font-size: 0.6rem; color: #22c55e; font-family: monospace; }
-    .hud-live .dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; animation: pulse-dot 1s infinite; }
-
-    .hud-body { padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
-
-    .grade-row { display: flex; align-items: center; gap: 14px; }
-    .grade-badge {
-      font-size: 2rem; font-weight: 900; line-height: 1; font-family: monospace;
-      background: linear-gradient(135deg, var(--grade-color), #ffffff22);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      filter: drop-shadow(0 0 8px var(--grade-color));
-    }
-    .grade-info { flex: 1; }
-    .grade-name { font-size: 1rem; font-weight: 700; color: #f1f5f9; line-height: 1.2; }
-    .grade-sub { font-size: 0.7rem; color: #64748b; font-family: monospace; margin-top: 2px; }
-
-    .confidence-row { display: flex; flex-direction: column; gap: 6px; }
-    .conf-header { display: flex; justify-content: space-between; align-items: center; }
-    .conf-label { font-size: 0.65rem; color: #64748b; font-family: monospace; letter-spacing: 0.2em; text-transform: uppercase; }
-    .conf-value { font-size: 0.75rem; font-weight: 700; color: #06b6d4; font-family: monospace; }
-    .conf-bar-track { height: 6px; background: rgba(255,255,255,0.06); border-radius: 99px; overflow: hidden; }
-    .conf-bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #06b6d4, #818cf8); transition: width 1s ease; box-shadow: 0 0 8px rgba(6,182,212,0.5); }
-
-    .clinical-note {
-      padding: 10px 12px; border-radius: 10px;
-      background: rgba(6,182,212,0.05); border: 1px solid rgba(6,182,212,0.15);
-      font-size: 0.7rem; color: #94a3b8; line-height: 1.6;
-    }
-    .clinical-note strong { color: #06b6d4; }
-
-    .hud-actions { display: flex; gap: 10px; margin-top: 4px; }
-    .btn-reset {
-      flex: 1; padding: 12px; border-radius: 12px;
-      background: rgba(6,182,212,0.1); border: 1px solid rgba(6,182,212,0.3);
-      color: #06b6d4; font-size: 0.7rem; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.15em;
-      cursor: pointer; transition: all 0.2s;
-    }
-    .btn-reset:hover { background: rgba(6,182,212,0.2); }
-    .btn-back {
-      flex: 1; padding: 12px; border-radius: 12px;
-      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
-      color: #94a3b8; font-size: 0.7rem; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.15em;
-      cursor: pointer; text-decoration: none; display: flex; align-items: center; justify-content: center;
-      transition: all 0.2s;
-    }
-    .btn-back:hover { background: rgba(255,255,255,0.1); }
-
-    /* Scanning guide corners */
-    #scan-guide {
-      position: fixed; inset: 0; z-index: 400; pointer-events: none;
-      display: flex; align-items: center; justify-content: center;
-      opacity: 1; transition: opacity 1s;
-    }
-    #scan-guide.hidden { opacity: 0; }
-    .scan-frame {
-      width: min(70vw, 320px); height: min(70vw, 320px);
-      position: relative;
-    }
-    .scan-corner {
-      position: absolute; width: 28px; height: 28px;
-      border-color: rgba(6,182,212,0.8); border-style: solid;
-    }
-    .scan-corner.tl { top: 0; left: 0; border-width: 2px 0 0 2px; border-radius: 6px 0 0 0; }
-    .scan-corner.tr { top: 0; right: 0; border-width: 2px 2px 0 0; border-radius: 0 6px 0 0; }
-    .scan-corner.bl { bottom: 0; left: 0; border-width: 0 0 2px 2px; border-radius: 0 0 0 6px; }
-    .scan-corner.br { bottom: 0; right: 0; border-width: 0 2px 2px 0; border-radius: 0 0 6px 0; }
-    .scan-line {
-      position: absolute; left: 10%; right: 10%; height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(6,182,212,0.8), transparent);
-      animation: scan-sweep 2s ease-in-out infinite;
-    }
-    @keyframes scan-sweep {
-      0% { top: 10%; opacity: 0; }
-      10% { opacity: 1; }
-      90% { opacity: 1; }
-      100% { top: 90%; opacity: 0; }
-    }
-    .scan-text {
-      position: absolute; bottom: -40px; left: 50%; transform: translateX(-50%);
-      white-space: nowrap; font-size: 0.65rem; color: rgba(6,182,212,0.8);
-      font-family: monospace; letter-spacing: 0.2em; text-transform: uppercase;
-    }
-
-    /* MindAR canvas container */
-    #mindar-container { position: fixed; inset: 0; z-index: 0; }
-  </style>
-</head>
-<body>
-
-<!-- Loading Screen -->
-<div id="loading-screen">
-  <div class="logo">Retina<span>Flow</span></div>
-  <div class="subtitle">WebAR Diagnostic Engine</div>
-  <div class="spinner"></div>
-  <div id="loading-status">Initializing AR engine...</div>
-</div>
-
-<!-- Navbar -->
-<div id="navbar">
-  <div class="brand">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="2">
-      <circle cx="12" cy="12" r="3"/><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
-      <line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/>
-      <line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/>
-    </svg>
-    <span class="brand-name">Retina<span>Flow</span> <span style="font-size:0.6rem;color:#475569;font-weight:400">AR</span></span>
-  </div>
-  <div class="badge">WebAR Mode</div>
-</div>
-
-<!-- AR Status -->
-<div id="ar-status">
-  <div class="dot"></div>
-  <span id="ar-status-text">Point camera at fundus scan</span>
-</div>
-
-<!-- Scan Guide Overlay -->
-<div id="scan-guide">
-  <div class="scan-frame">
-    <div class="scan-corner tl"></div>
-    <div class="scan-corner tr"></div>
-    <div class="scan-corner bl"></div>
-    <div class="scan-corner br"></div>
-    <div class="scan-line"></div>
-    <div class="scan-text">Align fundus image within frame</div>
-  </div>
-</div>
-
-<!-- MindAR Container -->
-<div id="mindar-container"></div>
-
-<!-- Floating Result HUD -->
-<div id="result-hud">
-  <div class="hud-header">
-    <span class="hud-label">AI Diagnostic Report</span>
-    <span class="hud-live"><span class="dot"></span>Live AR</span>
-  </div>
-  <div class="hud-body">
-    <div class="grade-row">
-      <div class="grade-badge" id="hud-grade-num">—</div>
-      <div class="grade-info">
-        <div class="grade-name" id="hud-grade-name">Analyzing...</div>
-        <div class="grade-sub" id="hud-grade-sub">Grade — / 4</div>
-      </div>
-      <div style="font-size:1.8rem" id="hud-icon">🔍</div>
-    </div>
-
-    <div class="confidence-row">
-      <div class="conf-header">
-        <span class="conf-label">Confidence Score</span>
-        <span class="conf-value" id="hud-conf-text">—%</span>
-      </div>
-      <div class="conf-bar-track">
-        <div class="conf-bar-fill" id="hud-conf-bar" style="width:0%"></div>
-      </div>
-    </div>
-
-    <div class="clinical-note">
-      <strong>Clinical Note:</strong> <span id="hud-clinical-note">Awaiting diagnosis...</span>
-    </div>
-
-    <div class="hud-actions">
-      <button class="btn-reset" id="btn-new-scan">New Scan</button>
-      <a href="/" class="btn-back">← Back to App</a>
-    </div>
-  </div>
-</div>
-
-<script>
-  // ── CONFIG ─────────────────────────────────────────
-  const API_BASE      = 'http://localhost:8000';
-  const TARGET_FILE   = './targets.mind'; // compiled MindAR target
-  // Image to use as AR target (must match the .mind file)
-  // This is a sample Grade 2 fundus image for demo
-  const DEMO_IMAGE_FNAME = 'demo_fundus.jpg'; // placed in /public
-
-  // Grade colours
-  const GRADE_META = {
-    0: { color: '#00ff88', label: 'No DR (Healthy)',     icon: '✅' },
-    1: { color: '#facc15', label: 'Mild NPDR',           icon: '⚠️' },
-    2: { color: '#fb923c', label: 'Moderate NPDR',       icon: '⚠️' },
-    3: { color: '#f87171', label: 'Severe NPDR',         icon: '🔴' },
-    4: { color: '#c084fc', label: 'Proliferative DR',    icon: '🚨' },
-  };
-
-  // ── GLOBALS ────────────────────────────────────────
-  let mindarThree = null;
-  let renderer, scene, camera;
-  let heatmapMesh = null;
-  let hudMesh = null;
-  let arStarted = false;
-  let diagnosisResult = null;
-  let targetFound = false;
-
-  const loadingScreen   = document.getElementById('loading-screen');
-  const loadingStatus   = document.getElementById('loading-status');
-  const arStatusText    = document.getElementById('ar-status-text');
-  const resultHud       = document.getElementById('result-hud');
-  const scanGuide       = document.getElementById('scan-guide');
-  const mindarContainer = document.getElementById('mindar-container');
-  const btnNewScan      = document.getElementById('btn-new-scan');
-
-  // ── BOOT SEQUENCE ──────────────────────────────────
-  window.addEventListener('load', async () => {
-    // 1. Read AR params from URL  
-    const params     = new URLSearchParams(location.search);
-    const heatmapUrl = params.get('heatmap');
-    const classId    = parseInt(params.get('class_id') || '0', 10);
-    const confidence = parseFloat(params.get('confidence') || '0');
-    const prediction = decodeURIComponent(params.get('prediction') || '');
-    const clinical   = decodeURIComponent(params.get('clinical') || '');
-
-    diagnosisResult = { heatmapUrl, classId, confidence, prediction, clinical };
-
-    loadingStatus.textContent = 'Loading AR engine...';
-
-    // 2. Init MindAR
-    try {
-      await initMindAR();
-    } catch (e) {
-      loadingStatus.textContent = 'AR init failed: ' + e.message;
-      console.error(e);
-      return;
-    }
-
-    // 3. Hide loading
-    loadingScreen.style.transition = 'opacity 0.6s';
-    loadingScreen.style.opacity    = '0';
-    setTimeout(() => loadingScreen.style.display = 'none', 600);
-  });
-
-  // ── INIT MINDAR ────────────────────────────────────
-  async function initMindAR() {
-    // Guard: check MindAR loaded correctly
-    if (!window.MINDAR || !window.MINDAR.IMAGE) {
-      throw new Error('MindAR failed to load from CDN. Check your internet connection and try again.');
-    }
-    if (!window.THREE) {
-      throw new Error('Three.js failed to load. Check your internet connection.');
-    }
-
-    const { MindARThree } = window.MINDAR.IMAGE;
-    const THREE = window.THREE;
-
-    loadingStatus.textContent = 'Loading image targets...';
-
-
-
-    mindarThree = new MindARThree({
-      container:  mindarContainer,
-      imageTargetSrc: TARGET_FILE,
-      maxTrack: 1,
-      uiLoading: 'no',
-      uiScanning: 'no',
-      uiError: 'no',
-    });
-
-    const { renderer: r, scene: s, camera: c } = mindarThree;
-    renderer = r; scene = s; camera = c;
-
-    // ── Build heatmap plane (the AR overlay) ───────────────
-    const anchor = mindarThree.addAnchor(0);
-
-    // Background plane (dark semi-transparent frame behind heatmap)
-    const frameMat = new THREE.MeshBasicMaterial({
-      color: 0x000000, transparent: true, opacity: 0.0
-    });
-    const frameMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.2), frameMat);
-    frameMesh.position.z = -0.001;
-    anchor.group.add(frameMesh);
-
-    // Heatmap plane — texture loaded from API result
-    if (diagnosisResult?.heatmapUrl) {
-      const loader = new THREE.TextureLoader();
-      loader.crossOrigin = 'anonymous';
-
-      loadingStatus.textContent = 'Loading Grad-CAM heatmap...';
-
-      try {
-        const texture = await new Promise((res, rej) => {
-          loader.load(diagnosisResult.heatmapUrl, res, undefined, rej);
-        });
-
-        const heatmapMat = new THREE.MeshBasicMaterial({
-          map: texture,
-          transparent: true,
-          opacity: 0.85,
-          depthWrite: false,
-        });
-
-        heatmapMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.0), heatmapMat);
-        heatmapMesh.position.set(0, 0, 0.001);
-        anchor.group.add(heatmapMesh);
-      } catch (e) {
-        console.warn('Heatmap texture load failed, showing outline only:', e);
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RetinaFlow WebAR</title>
+    <!-- A-Frame and MindAR for WebAR tracking -->
+    <script src="./aframe.min.js"></script>
+    <script src="./mindar-image-aframe.prod.js"></script>
+    <style>
+      body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; }
+      
+      #ui-layer {
+        position: absolute;
+        top: 0; left: 0; width: 100%;
+        z-index: 100;
+        pointer-events: none;
+        padding: 24px;
+        background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
       }
-    }
+      .title {
+        color: #fff; font-size: 28px; font-weight: 900;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        letter-spacing: -0.03em;
+      }
+      .title span { color: #06b6d4; }
+      .subtitle {
+        color: #e2e8f0; font-size: 14px; margin-top: 4px;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+      }
+      
+      #back-btn {
+        position: absolute; bottom: 30px; left: 50%;
+        transform: translateX(-50%);
+        padding: 12px 24px;
+        background: rgba(6, 182, 212, 0.2);
+        border: 1px solid rgba(6, 182, 212, 0.5);
+        color: #06b6d4;
+        border-radius: 12px;
+        font-weight: bold;
+        text-decoration: none;
+        pointer-events: auto;
+        backdrop-filter: blur(10px);
+        z-index: 100;
+      }
 
-    // ── Grade label plane (floating text above the scan) ────
-    const gradeCanvas = buildGradeCanvas(diagnosisResult);
-    const gradeTex    = new THREE.CanvasTexture(gradeCanvas);
-    const gradeMat    = new THREE.MeshBasicMaterial({ map: gradeTex, transparent: true });
-    hudMesh           = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.35), gradeMat);
-    hudMesh.position.set(0, 0.75, 0.01);
-    anchor.group.add(hudMesh);
+      /* MindAR loading screen override */
+      .mindar-ui-overlay { background: rgba(0,0,0,0.8); }
+      .mindar-ui-loading .loader { border-top-color: #06b6d4 !important; }
+    </style>
+  </head>
+  <body>
+    <div id="ui-layer">
+      <div class="title">Retina<span>Flow</span> AR</div>
+      <div class="subtitle">Point camera at the printed fundus image to view AI diagnosis.</div>
+    </div>
+    
+    <a href="javascript:history.back()" id="back-btn">← Close AR View</a>
 
-    // ── Corner markers ─────────────────────────────────────
-    addCornerMarkers(anchor.group, THREE);
+    <!-- AR Scene (requires targets.mind in the public folder) -->
+    <a-scene 
+      mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiError:yes; uiLoading:yes; uiScanning:yes;" 
+      color-space="sRGB" 
+      renderer="colorManagement: true, physicallyCorrectLights" 
+      vr-mode-ui="enabled: false" 
+      device-orientation-permission-ui="enabled: false">
+      
+      <a-assets>
+        <img id="heatmap-tex" src="" crossorigin="anonymous">
+      </a-assets>
 
-    // ── Events ─────────────────────────────────────────────
-    anchor.onTargetFound = () => {
-      targetFound = true;
-      scanGuide.classList.add('hidden');
-      arStatusText.textContent = 'Target locked — Grad-CAM active';
-      showResultHud();
-    };
-    anchor.onTargetLost = () => {
-      targetFound = false;
-      scanGuide.classList.remove('hidden');
-      arStatusText.textContent = 'Scan lost — Re-align fundus image';
-    };
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-    loadingStatus.textContent = 'Starting camera...';
-    await mindarThree.start();
-    arStarted = true;
+      <a-entity mindar-image-target="targetIndex: 0">
+        
+        <!-- Background Plane to darken the original image slightly -->
+        <a-plane position="0 0 0" height="1" width="1" rotation="0 0 0" color="#000" opacity="0.3" material="transparent: true"></a-plane>
 
-    // Render loop
-    renderer.setAnimationLoop(() => {
-      renderer.render(scene, camera);
-    });
-  }
+        <!-- Overlay Heatmap exactly over the target image -->
+        <a-plane id="heatmap-plane" src="#heatmap-tex" position="0 0 0" height="1" width="1" rotation="0 0 0" opacity="0.85" material="transparent: true; alphaTest: 0.1;"></a-plane>
+        
+        <!-- Text for Grade (Marked on image) -->
+        <a-entity position="0 0.65 0">
+          <a-plane width="1.2" height="0.2" color="#000" opacity="0.7" position="0 0 -0.01" material="transparent: true"></a-plane>
+          <a-text id="grade-text" value="Detecting Grade..." align="center" position="0 0 0" scale="0.6 0.6 0.6" color="#06b6d4" font="kelsonsans"></a-text>
+        </a-entity>
+        
+        <!-- Scanning Box effect -->
+        <a-plane position="0 0 0.01" width="1" height="1" material="shader: flat; color: #06b6d4; wireframe: true; opacity: 0.5"></a-plane>
 
-  // ── Build grade HUD as Canvas texture ─────────────────────
-  function buildGradeCanvas(result) {
-    const canvas = document.createElement('canvas');
-    canvas.width  = 880;
-    canvas.height = 280;
-    const ctx = canvas.getContext('2d');
-    const meta = GRADE_META[result?.classId ?? 0] || GRADE_META[0];
+      </a-entity>
+    </a-scene>
 
-    // Background pill
-    const grad = ctx.createLinearGradient(0, 0, 880, 0);
-    grad.addColorStop(0, 'rgba(8,12,22,0.95)');
-    grad.addColorStop(1, 'rgba(15,23,42,0.95)');
-    ctx.fillStyle = grad;
-    roundRect(ctx, 0, 0, 880, 280, 36);
-    ctx.fill();
+    <script>
+       // Read URL params passed from the frontend
+       const params = new URLSearchParams(window.location.search);
+       const grade = params.get('grade') || '0';
+       const heatmapUrl = params.get('heatmap') || '';
+       
+       const GRADE_META = {
+         '0': { name: 'No DR (Healthy)', color: '#10b981' }, // Emerald
+         '1': { name: 'Mild NPDR', color: '#facc15' },      // Yellow
+         '2': { name: 'Moderate NPDR', color: '#fb923c' },  // Orange
+         '3': { name: 'Severe NPDR', color: '#ef4444' },    // Red
+         '4': { name: 'Proliferative DR', color: '#b91c1c' }// Dark Red
+       };
 
-    // Left accent bar
-    ctx.fillStyle = meta.color;
-    roundRect(ctx, 0, 0, 10, 280, [36, 0, 0, 36]);
-    ctx.fill();
+       const meta = GRADE_META[grade] || GRADE_META['0'];
 
-    // Outer border
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-    ctx.lineWidth   = 2;
-    roundRect(ctx, 1, 1, 878, 278, 35);
-    ctx.stroke();
+       // Apply heatmap texture
+       if (heatmapUrl) {
+           document.getElementById('heatmap-tex').src = heatmapUrl;
+       }
 
-    // Icon
-    ctx.font = '80px serif';
-    ctx.fillText(meta.icon, 28, 96);
-
-    // Grade label
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = 'bold 22px monospace';
-    ctx.fillText('RETINA AI DIAGNOSIS', 140, 58);
-
-    // Grade name
-    ctx.fillStyle = meta.color;
-    ctx.font = 'bold 52px system-ui';
-    ctx.fillText(result?.prediction || meta.label, 140, 124);
-
-    // Confidence
-    ctx.fillStyle = '#64748b';
-    ctx.font = '28px monospace';
-    ctx.fillText(`Grade ${result?.classId ?? '—'} / 4  ·  ${result?.confidence?.toFixed(1) ?? '—'}% confidence`, 140, 168);
-
-    // Clinical note
-    ctx.fillStyle = '#475569';
-    ctx.font = '22px system-ui';
-    const note = result?.clinical || '';
-    ctx.fillText(note.length > 64 ? note.slice(0, 64) + '...' : note, 28, 240);
-
-    return canvas;
-  }
-
-  function roundRect(ctx, x, y, w, h, r) {
-    if (typeof r === 'number') r = [r, r, r, r];
-    ctx.beginPath();
-    ctx.moveTo(x + r[0], y);
-    ctx.lineTo(x + w - r[1], y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r[1]);
-    ctx.lineTo(x + w, y + h - r[2]);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r[2], y + h);
-    ctx.lineTo(x + r[3], y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r[3]);
-    ctx.lineTo(x, y + r[0]);
-    ctx.quadraticCurveTo(x, y, x + r[0], y);
-    ctx.closePath();
-  }
-
-  // ── Corner markers for the AR anchor ──────────────────────
-  function addCornerMarkers(group, THREE) {
-    const mat = new THREE.LineBasicMaterial({ color: 0x06b6d4, linewidth: 2 });
-    const size = 0.5; const seg = 0.12;
-    const corners = [
-      [[-size, size], [1, 0], [0, -1]],
-      [[size, size],  [-1,0], [0,-1]],
-      [[-size,-size],[1, 0], [0,  1]],
-      [[size, -size],[-1,0], [0,  1]],
-    ];
-    corners.forEach(([[cx, cy], [dx, dy], [ex, ey]]) => {
-      const pts = [
-        new THREE.Vector3(cx + dx*seg, cy, 0.002),
-        new THREE.Vector3(cx, cy, 0.002),
-        new THREE.Vector3(cx, cy + ey*seg, 0.002),
-      ];
-      const geo = new THREE.BufferGeometry().setFromPoints(pts);
-      group.add(new THREE.Line(geo, mat));
-    });
-  }
-
-  // ── Show HTML Result HUD ───────────────────────────────────
-  function showResultHud() {
-    const result = diagnosisResult;
-    if (!result) return;
-    const meta = GRADE_META[result.classId ?? 0] || GRADE_META[0];
-
-    document.getElementById('hud-grade-num').textContent  = `G${result.classId ?? '—'}`;
-    document.getElementById('hud-grade-num').style.setProperty('--grade-color', meta.color);
-    document.getElementById('hud-grade-name').textContent  = result.prediction || meta.label;
-    document.getElementById('hud-grade-sub').textContent   = `Grade ${result.classId} / 4`;
-    document.getElementById('hud-icon').textContent        = meta.icon;
-    document.getElementById('hud-conf-text').textContent   = `${result.confidence?.toFixed(1) ?? '—'}%`;
-    document.getElementById('hud-clinical-note').textContent = result.clinical || '';
-
-    setTimeout(() => {
-      document.getElementById('hud-conf-bar').style.width = `${result.confidence ?? 0}%`;
-    }, 200);
-
-    resultHud.classList.add('visible');
-  }
-
-  // ── New Scan button ────────────────────────────────────────
-  btnNewScan.addEventListener('click', () => {
-    resultHud.classList.remove('visible');
-    scanGuide.classList.remove('hidden');
-    arStatusText.textContent = 'Scan a new fundus image';
-  });
-</script>
-</body>
+       // Update Grade Text
+       const gradeText = document.getElementById('grade-text');
+       gradeText.setAttribute('value', `GRADE ${grade}: ${meta.name.toUpperCase()}`);
+       gradeText.setAttribute('color', meta.color);
+    </script>
+  </body>
 </html>
