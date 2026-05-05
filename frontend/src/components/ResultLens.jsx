@@ -230,11 +230,22 @@ export default function ResultLens({ appState, result, onReset }) {
 
                {/* Cross-Device AR Section */}
                <div className="mt-4 p-4 rounded-xl bg-slate-900/60 border border-slate-700/50 flex flex-col items-center">
-                  <p className="text-slate-400 font-mono text-[10px] sm:text-xs tracking-[0.1em] uppercase mb-3 text-center">
-                    Scan to view AR on Mobile
-                  </p>
-                  <div className="bg-white p-2 rounded-xl mb-3 shadow-[0_0_20px_rgba(6,182,212,0.15)] transition-transform hover:scale-105">
-                    <QRCodeSVG value={absoluteArUrl} size={110} />
+                  <div className="flex w-full items-center justify-between mb-3 px-2">
+                    <span className="text-[10px] tracking-[0.1em] text-slate-400 uppercase font-bold text-center w-1/2">1. Scan QR Code</span>
+                    <span className="text-[10px] tracking-[0.1em] text-slate-400 uppercase font-bold text-center w-1/2 border-l border-slate-700">2. Track Marker</span>
+                  </div>
+                  
+                  <div className="flex w-full flex-row items-center justify-center gap-4">
+                    {/* QR Code */}
+                    <div className="bg-white p-2 rounded-xl mb-3 shadow-[0_0_20px_rgba(6,182,212,0.15)] transition-transform hover:scale-105">
+                      <QRCodeSVG value={absoluteArUrl} size={100} />
+                    </div>
+                    
+                    {/* AR Anchor Image */}
+                    <div className="bg-black p-1 rounded-xl mb-3 shadow-[0_0_20px_rgba(0,255,255,0.3)] transition-transform hover:scale-105 border-2 border-cyan-500 relative">
+                      <img src="/ar_anchor.jpg" alt="AR Marker" className="w-[100px] h-[100px] object-contain rounded-lg" />
+                      <div className="absolute inset-0 bg-cyan-500/10 animate-pulse rounded-lg pointer-events-none"></div>
+                    </div>
                   </div>
                   
                   <div className="flex items-center gap-3 w-full text-center mt-1 mb-2">

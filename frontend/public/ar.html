@@ -108,9 +108,9 @@
 
            if (imageUrl) {
                try {
-                   compileText.innerText = 'Downloading Source Image...';
+                   compileText.innerText = 'Downloading AR Anchor...';
                    const compiler = new MINDAR.IMAGE.Compiler();
-                   const img = await loadImage(imageUrl);
+                   const img = await loadImage('/ar_anchor.jpg');
                    
                    await compiler.compileImageTargets([img], (progress) => {
                        compileText.innerText = `Compiling AR Target: ${(progress * 100).toFixed(0)}%`;
@@ -122,7 +122,7 @@
                    targetSrc = URL.createObjectURL(blob);
                    
                    // Modify subtitle to show dynamic compilation worked
-                   document.querySelector('.subtitle').innerText = "Dynamic Target Ready! Point camera at the exact image on your laptop screen.";
+                   document.querySelector('.subtitle').innerText = "Dynamic Target Ready! Point camera at the geometric AR Marker on your laptop.";
                    document.querySelector('.subtitle').style.color = "#10b981"; // Green to indicate success
                } catch(e) {
                    console.error("Compilation error:", e);
@@ -146,21 +146,28 @@
                device-orientation-permission-ui="enabled: false">
                
                <a-assets>
+                 <img id="base-img" src="${imageUrl}">
                  <img id="heatmap-tex" src="${heatmapUrl || ''}">
                </a-assets>
 
                <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
                <a-entity mindar-image-target="targetIndex: 0">
-                 <a-plane position="0 0 0" height="1" width="1" rotation="0 0 0" color="#000" opacity="0.3" material="transparent: true"></a-plane>
-                 ${heatmapUrl ? '<a-plane src="#heatmap-tex" position="0 0 0" height="1" width="1" rotation="0 0 0" opacity="0.85" material="transparent: true; alphaTest: 0.1;"></a-plane>' : ''}
-                 
-                 <a-entity position="0 0.65 0">
-                   <a-plane width="1.2" height="0.2" color="#000" opacity="0.7" position="0 0 -0.01" material="transparent: true"></a-plane>
-                   <a-text value="GRADE ${grade}: ${meta.name.toUpperCase()}" align="center" position="0 0 0" scale="0.6 0.6 0.6" color="${meta.color}" font="kelsonsans"></a-text>
+                 <!-- The AR dashboard floating above the marker -->
+                 <a-entity position="0 0.8 0" scale="1.2 1.2 1.2">
+                   <!-- Base Eye Image -->
+                   <a-plane src="#base-img" position="0 0 0" height="1" width="1" rotation="0 0 0"></a-plane>
+                   <!-- Heatmap Overlay -->
+                   ${heatmapUrl ? '<a-plane src="#heatmap-tex" position="0 0 0.01" height="1" width="1" rotation="0 0 0" opacity="0.85" material="transparent: true; alphaTest: 0.1;"></a-plane>' : ''}
+                   
+                   <!-- Diagnostic Text -->
+                   <a-entity position="0 0.65 0">
+                     <a-plane width="1.2" height="0.2" color="#000" opacity="0.8" position="0 0 -0.01" material="transparent: true"></a-plane>
+                     <a-text value="GRADE ${grade}: ${meta.name.toUpperCase()}" align="center" position="0 0 0" scale="0.6 0.6 0.6" color="${meta.color}" font="kelsonsans"></a-text>
+                   </a-entity>
+                   
+                   <a-plane position="0 0 0.02" width="1" height="1" material="shader: flat; color: ${meta.color}; wireframe: true; opacity: 0.5"></a-plane>
                  </a-entity>
-                 
-                 <a-plane position="0 0 0.01" width="1" height="1" material="shader: flat; color: ${meta.color}; wireframe: true; opacity: 0.5"></a-plane>
                </a-entity>
              </a-scene>
            `;
