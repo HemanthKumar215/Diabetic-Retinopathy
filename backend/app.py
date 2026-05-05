@@ -244,14 +244,38 @@ async def predict(request: Request, file: UploadFile = File(...)):
             cam_engine = ViTGradCAM(model)
             heatmap, sev_label, class_id, confidence = cam_engine.generate_heatmap(input_tensor)
 
-        # --- Add High-Contrast AR Tracking Corners to Images ---
-        # This solves the issue of fundus images lacking trackable features.
+        # --- Add High-Contrast AR Tracking HUD to Images ---
+        # MindAR needs thousands of sharp corners (FAST features) to track off a glowing screen.
         tracking_img = original_img.copy()
         h, w = tracking_img.shape[:2]
-        s = int(w * 0.12) # 12% corner size
-        # Top-left, Top-right, Bottom-left, Bottom-right
+        
+        # Draw Medical HUD Grid (Provides massive amount of tracking features)
+        color = (0, 255, 255) # Yellow for high contrast on black/orange
+        cv2.rectangle(tracking_img, (0, 0), (w-1, h-1), color, 4)
+        
+        # Draw tick marks every 10 pixels around the entire border
+        for i in range(0, w, 15):
+            if i % 60 == 0:
+                cv2.line(tracking_img, (i, 0), (i, 25), color, 2)
+                cv2.line(tracking_img, (i, h), (i, h-25), color, 2)
+            else:
+                cv2.line(tracking_img, (i, 0), (i, 10), color, 1)
+                cv2.line(tracking_img, (i, h), (i, h-10), color, 1)
+
+        for i in range(0, h, 15):
+            if i % 60 == 0:
+                cv2.line(tracking_img, (0, i), (25, i), color, 2)
+                cv2.line(tracking_img, (w, i), (w-25, i), color, 2)
+            else:
+                cv2.line(tracking_img, (0, i), (10, i), color, 1)
+                cv2.line(tracking_img, (w, i), (w-10, i), color, 1)
+
+        # Draw crosshair corners
+        s = int(w * 0.1)
         for pt1, pt2 in [((0, 0), (s, s)), ((w - s, 0), (w, s)), ((0, h - s), (s, h)), ((w - s, h - s), (w, h))]:
-            cv2.rectangle(tracking_img, pt1, pt2, (255, 255, 255), -1)
+            cv2.rectangle(tracking_img, pt1, pt2, color, 2)
+            cv2.line(tracking_img, pt1, pt2, color, 2)
+            cv2.line(tracking_img, (pt1[0], pt2[1]), (pt2[0], pt1[1]), color, 2)
 
         # --- Save the tracked preprocessed image for compare mode ---
         processed_filename = f"processed_{file_id}.png"
