@@ -112,10 +112,11 @@ def preprocess_for_inference(img_path):
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
     
-    # Resize original image to same size for GradCAM overlay consistency
-    original_img_resized = cv2.resize(cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB), (CONFIG["img_size"], CONFIG["img_size"]))
+    # Resize original image to HIGH RESOLUTION (896x896) for AR tracking consistency.
+    # MindAR completely fails on 224x224 images because they lack sufficient pixel density for feature extraction.
+    original_img_highres = cv2.resize(cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB), (896, 896))
 
-    return original_img_resized, transform(img_resized).unsqueeze(0)
+    return original_img_highres, transform(img_resized).unsqueeze(0)
 
 # ==========================================
 # GRAD-CAM IMPLEMENTATION (Corrected for ViT)
@@ -207,9 +208,8 @@ class ViTGradCAM:
             # Fallback: zero map
             heatmap = np.zeros((14, 14), dtype=np.float32)
 
-        # Upscale to image resolution with bicubic interpolation for smoothness
-        heatmap = cv2.resize(heatmap, (CONFIG["img_size"], CONFIG["img_size"]),
-                             interpolation=cv2.INTER_CUBIC)
+        # Upscale to high resolution (896x896) with bicubic interpolation for smoothness
+        heatmap = cv2.resize(heatmap, (896, 896), interpolation=cv2.INTER_CUBIC)
         heatmap = np.clip(heatmap, 0, 1)
 
         return heatmap, CONFIG["class_map"][target_class], target_class, confidence
