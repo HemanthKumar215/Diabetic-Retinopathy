@@ -21,7 +21,7 @@ const MOCK_FEATURES = {
 export default function ResultLens({ appState, result, onReset }) {
   const [showHeatmap, setShowHeatmap] = useState(true);
   const [heatmapOpacity, setHeatmapOpacity] = useState(0.85);
-  const [isCompareMode, setIsCompareMode] = useState(false);
+  const [isCompareMode, setIsCompareMode] = useState(true);
   const [progressValue, setProgressValue] = useState(0);
   const [parallax, setParallax] = useState({ x: 0, y: 0 });
   const [invertHeatmap, setInvertHeatmap] = useState(false);
@@ -34,7 +34,7 @@ export default function ResultLens({ appState, result, onReset }) {
         return () => clearTimeout(pTimeout);
     } else {
       setProgressValue(0);
-      setIsCompareMode(false);
+      setIsCompareMode(true);
       setHeatmapOpacity(0.85);
       setShowHeatmap(true);
       setInvertHeatmap(false);
@@ -145,7 +145,7 @@ export default function ResultLens({ appState, result, onReset }) {
                 min="0" max="1" step="0.01" 
                 value={heatmapOpacity} 
                 onChange={(e) => {setHeatmapOpacity(Number(e.target.value)); setShowHeatmap(true);}}
-                className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-neon-cyan"
+                className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-red-500"
                 disabled={!showHeatmap}
               />
               
@@ -160,29 +160,12 @@ export default function ResultLens({ appState, result, onReset }) {
                 </button>
                 <button 
                   onClick={() => { setIsCompareMode(!isCompareMode); setParallax({x:0,y:0}); }}
-                  className={`flex-1 py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-widest border transition-all flex justify-center items-center gap-2 ${
-                    isCompareMode ? 'bg-blue-900/40 border-blue-500/50 text-blue-300 shadow-[inset_0_0_10px_rgba(59,130,246,0.2)]' : 'bg-dark-900 border-slate-700 text-slate-500'
+                  className={`flex-1 py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-widest border transition-all ${
+                    isCompareMode ? 'bg-cyan-900/40 border-cyan-500/50 text-cyan-300 shadow-[inset_0_0_10px_rgba(6,182,212,0.2)]' : 'bg-dark-900 border-slate-700 text-slate-500'
                   }`}
                 >
-                  <LayoutTemplate size={14} /> Compare
+                  Compare
                 </button>
-                <button 
-                  onClick={() => setInvertHeatmap(!invertHeatmap)}
-                  className={`flex-[0.8] py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-widest border transition-all ${
-                    invertHeatmap ? 'bg-purple-900/40 border-purple-500/50 text-purple-300 shadow-[inset_0_0_10px_rgba(168,85,247,0.2)]' : 'bg-dark-900 border-slate-700 text-slate-500'
-                  }`}
-                  disabled={!showHeatmap}
-                >
-                  Invert
-                </button>
-              </div>
-
-              {/* Semantic Disclaimer */}
-              <div className="w-full mt-1 p-2.5 rounded-lg bg-emerald-900/10 border border-emerald-500/20 flex items-start gap-2.5">
-                 <AlertTriangle size={14} className="text-emerald-500 mt-0.5 shrink-0" />
-                 <p className="text-[10px] text-slate-400 font-mono leading-relaxed">
-                   <span className="text-emerald-500 font-bold uppercase tracking-wider">Clinical Note:</span> Attention map shows model focus regions, not exact pathology location. For advanced DR, high pathology regions may appear in non-hot zones. Use <span className="text-purple-400 border border-purple-800 bg-purple-900/30 px-1 rounded">INVERT</span> to check alternative color mappings.
-                 </p>
               </div>
             </div>
 
@@ -223,53 +206,10 @@ export default function ResultLens({ appState, result, onReset }) {
 
                <button 
                   onClick={onReset} 
-                  className="w-full py-4 sm:py-5 uppercase tracking-widest text-sm font-bold text-black bg-neon-cyan hover:bg-cyan-300 rounded-xl transition-all shadow-[0_0_20px_-5px_rgba(6,182,212,0.5)] hover:shadow-[0_0_40px_0px_rgba(6,182,212,0.8)] hover:-translate-y-1"
+                  className="w-full py-4 sm:py-5 uppercase tracking-widest text-xs font-bold text-slate-400 bg-dark-900 border border-slate-700/80 rounded-xl hover:text-white hover:border-slate-500 transition-all"
                >
                   Initiate New Scan
                </button>
-
-               {/* Cross-Device AR Section */}
-               <div className="mt-4 p-4 rounded-xl bg-slate-900/60 border border-slate-700/50 flex flex-col items-center">
-                  <div className="flex w-full items-center justify-between mb-3 px-2">
-                    <span className="text-[10px] tracking-[0.1em] text-slate-400 uppercase font-bold text-center w-1/2">1. Scan QR Code</span>
-                    <span className="text-[10px] tracking-[0.1em] text-slate-400 uppercase font-bold text-center w-1/2 border-l border-slate-700">2. Track Marker</span>
-                  </div>
-                  
-                  <div className="flex w-full flex-row items-center justify-center gap-4">
-                    {/* QR Code */}
-                    <div className="bg-white p-2 rounded-xl mb-3 shadow-[0_0_20px_rgba(6,182,212,0.15)] transition-transform hover:scale-105">
-                      <QRCodeSVG value={absoluteArUrl} size={100} />
-                    </div>
-                    
-                    {/* AR Anchor Image */}
-                    <div className="bg-black p-1 rounded-xl mb-3 shadow-[0_0_20px_rgba(0,255,255,0.3)] transition-transform hover:scale-105 border-2 border-cyan-500 relative">
-                      <img src="/ar_anchor.jpg" alt="AR Marker" className="w-[100px] h-[100px] object-contain rounded-lg" />
-                      <div className="absolute inset-0 bg-cyan-500/10 animate-pulse rounded-lg pointer-events-none"></div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-3 w-full text-center mt-1 mb-2">
-                    <div className="flex-1 h-px bg-slate-700/50"></div>
-                    <span className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">OR</span>
-                    <div className="flex-1 h-px bg-slate-700/50"></div>
-                  </div>
-
-                  {/* Local AR Mode Button */}
-                  <button
-                     onClick={openAR}
-                     className="w-full mt-1 py-3 uppercase tracking-widest text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-3
-                       bg-gradient-to-r from-violet-600/30 to-cyan-600/30
-                       border border-violet-500/50 text-violet-300
-                       hover:from-violet-600/50 hover:to-cyan-600/50
-                       hover:border-violet-400 hover:text-white
-                       shadow-[0_0_20px_-5px_rgba(139,92,246,0.4)]
-                       hover:shadow-[0_0_40px_0px_rgba(139,92,246,0.6)]
-                       hover:-translate-y-1"
-                  >
-                     <Glasses size={16} />
-                     Launch AR Here
-                  </button>
-               </div>
             </div>
           </div>
       </div>

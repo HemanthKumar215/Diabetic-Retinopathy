@@ -122,96 +122,59 @@ def preprocess_for_inference(img_path):
 # GRAD-CAM IMPLEMENTATION (Corrected for ViT)
 # ==========================================
 class ViTGradCAM:
-    """
-    Correct Grad-CAM for Vision Transformers (ViT).
-    
-    Key fixes vs naive implementation:
-    - Hook the LAST transformer block output (not model.norm).
-      model.norm captures post-normalized features but the spatial
-      token structure is still intact there; however hooking the last
-      block's output before norm is more representative.
-    - Gradient weights are computed by averaging over the embedding
-      dimension (dim=2, the channel/feature axis), NOT over the token
-      sequence dimension. This gives one importance scalar per token.
-    - CAM is computed as a weighted sum of activations per token
-      (element-wise weight * activation summed across channels), which
-      is the standard Grad-CAM formula adapted for sequence models.
-    - CLS token (index 0) is excluded since it has no spatial meaning.
-    - ReLU is applied AFTER the weighted-sum to keep only positive
-      contributions to the predicted class.
-    """
     def __init__(self, model):
         self.model = model
         self.gradients = None
         self.activations = None
-        # Hook the LAST transformer block — captures richest spatial features
-        target_layer = self.model.model.blocks[-1]
-        target_layer.register_forward_hook(self._save_activation)
-        target_layer.register_full_backward_hook(self._save_gradient)
+        target_layer = self.model.model.norm 
+        target_layer.register_forward_hook(self.save_activation)
+        target_layer.register_full_backward_hook(self.save_gradient)
 
-    def _save_activation(self, module, input, output):
-        # output shape: [B, num_tokens, embed_dim]  e.g. [1, 197, 768]
+    def save_activation(self, module, input, output):
         self.activations = output.detach()
 
-    def _save_gradient(self, module, grad_input, grad_output):
-        # grad_output[0] shape: [B, num_tokens, embed_dim]
+    def save_gradient(self, module, grad_input, grad_output):
         self.gradients = grad_output[0].detach()
 
     def generate_heatmap(self, input_tensor, target_class=None):
         self.model.zero_grad()
         output = self.model(input_tensor)
-
-        probs = torch.nn.functional.softmax(output, dim=1)
-
+        probs = torch.softmax(output, dim=1)
+        
         if target_class is None:
             target_class = output.argmax(dim=1).item()
-
+        
         confidence = probs[0, target_class].item()
-
-        # Backprop on the raw logit (not softmax) for sharper gradients
         loss = output[0, target_class]
         loss.backward()
 
-        # gradients & activations: [1, num_tokens, embed_dim]
-        grads = self.gradients[0]       # [num_tokens, embed_dim]
-        acts  = self.activations[0]     # [num_tokens, embed_dim]
-
-        # --- CORRECT Grad-CAM weight: global average pool over embedding dim ---
-        # weights shape: [num_tokens] — one importance score per spatial token
-        weights = grads.mean(dim=1)     # avg over channels → [num_tokens]
-
-        # Weighted sum of activations across channels
-        # cam[t] = sum_c( weight[t] * acts[t,c] ) but we just multiply the
-        # scalar weight by each token's activation and then sum → equivalent
-        # to the dot product of weight vector and the summed activation per token
-        cam = (weights.unsqueeze(1) * acts).sum(dim=1)  # [num_tokens]
-
-        # ReLU — keep only positive contributions to the predicted class
-        cam = torch.relu(cam)
-
-        # Drop the CLS token (index 0) — it has no spatial correspondence
-        cam = cam[1:]  # [196] for 14×14 grid
-
-        # Normalise to [0, 1]
+        weights = torch.mean(self.gradients, dim=1, keepdim=True)
+        cam = torch.matmul(weights, self.activations.transpose(1, 2))
+        cam = torch.relu(cam).squeeze()
+        
+        if cam.dim() == 1 and cam.size(0) == 197:
+            cam = cam[1:]
+        
+        # Initial Normalization
         cam_min, cam_max = cam.min(), cam.max()
         if cam_max > cam_min:
             cam = (cam - cam_min) / (cam_max - cam_min)
-        else:
-            cam = torch.zeros_like(cam)
+        
+        # BOOSTING SECONDARY FEATURES (Fix for "Blue Blood" issue)
+        gamma = 1.5 
+        cam = torch.pow(cam, 1/gamma) 
+        
+        # Confidence Scaling (Healthy = Faint, Diseased = Vivid)
+        cam = cam * confidence 
 
-        # Reshape to spatial grid
-        num_patches = cam.size(0)
-        side = int(round(num_patches ** 0.5))
         try:
+            heatmap = cam.reshape(14, 14).cpu().numpy()
+        except:
+            side = int(np.sqrt(cam.size(0)))
             heatmap = cam.reshape(side, side).cpu().numpy()
-        except Exception:
-            # Fallback: zero map
-            heatmap = np.zeros((14, 14), dtype=np.float32)
 
-        # Upscale to high resolution (896x896) with bicubic interpolation for smoothness
         heatmap = cv2.resize(heatmap, (896, 896), interpolation=cv2.INTER_CUBIC)
         heatmap = np.clip(heatmap, 0, 1)
-
         return heatmap, CONFIG["class_map"][target_class], target_class, confidence
 
 # ==========================================
@@ -244,43 +207,10 @@ async def predict(request: Request, file: UploadFile = File(...)):
             cam_engine = ViTGradCAM(model)
             heatmap, sev_label, class_id, confidence = cam_engine.generate_heatmap(input_tensor)
 
-        # --- Add High-Contrast AR Tracking HUD to Images ---
-        # MindAR needs thousands of sharp corners (FAST features) to track off a glowing screen.
-        tracking_img = original_img.copy()
-        h, w = tracking_img.shape[:2]
-        
-        # Draw Medical HUD Grid (Provides massive amount of tracking features)
-        color = (0, 255, 255) # Yellow for high contrast on black/orange
-        cv2.rectangle(tracking_img, (0, 0), (w-1, h-1), color, 4)
-        
-        # Draw tick marks every 10 pixels around the entire border
-        for i in range(0, w, 15):
-            if i % 60 == 0:
-                cv2.line(tracking_img, (i, 0), (i, 25), color, 2)
-                cv2.line(tracking_img, (i, h), (i, h-25), color, 2)
-            else:
-                cv2.line(tracking_img, (i, 0), (i, 10), color, 1)
-                cv2.line(tracking_img, (i, h), (i, h-10), color, 1)
-
-        for i in range(0, h, 15):
-            if i % 60 == 0:
-                cv2.line(tracking_img, (0, i), (25, i), color, 2)
-                cv2.line(tracking_img, (w, i), (w-25, i), color, 2)
-            else:
-                cv2.line(tracking_img, (0, i), (10, i), color, 1)
-                cv2.line(tracking_img, (w, i), (w-10, i), color, 1)
-
-        # Draw crosshair corners
-        s = int(w * 0.1)
-        for pt1, pt2 in [((0, 0), (s, s)), ((w - s, 0), (w, s)), ((0, h - s), (s, h)), ((w - s, h - s), (w, h))]:
-            cv2.rectangle(tracking_img, pt1, pt2, color, 2)
-            cv2.line(tracking_img, pt1, pt2, color, 2)
-            cv2.line(tracking_img, (pt1[0], pt2[1]), (pt2[0], pt1[1]), color, 2)
-
-        # --- Save the tracked preprocessed image for compare mode ---
+        # --- Save the clean preprocessed image for compare mode ---
         processed_filename = f"processed_{file_id}.png"
         processed_path = os.path.join(CONFIG["uploads_dir"], processed_filename)
-        cv2.imwrite(processed_path, cv2.cvtColor(tracking_img, cv2.COLOR_RGB2BGR))
+        cv2.imwrite(processed_path, cv2.cvtColor(original_img, cv2.COLOR_RGB2BGR))
 
         # --- Generate flat Grad-CAM overlay (for flat UI compare mode) ---
         heatmap_filename = f"heatmap_{file_id}.png"
@@ -290,15 +220,10 @@ async def predict(request: Request, file: UploadFile = File(...)):
         heatmap_uint8   = (heatmap * 255).astype(np.uint8)
         heatmap_colored = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)   # BGR
 
-        # Blend: 55% original + 45% heatmap  (flat UI)
-        # Use the tracking_img so the corners are preserved!
-        tracking_bgr = cv2.cvtColor(tracking_img, cv2.COLOR_RGB2BGR)
-        overlay_bgr  = cv2.addWeighted(tracking_bgr, 0.55, heatmap_colored, 0.45, 0)
+        # Blend: 55% original + 45% heatmap (flat UI)
+        original_bgr = cv2.cvtColor(original_img, cv2.COLOR_RGB2BGR)
+        overlay_bgr  = cv2.addWeighted(original_bgr, 0.55, heatmap_colored, 0.45, 0)
         
-        # Redraw pure white corners over the heatmap overlay to ensure maximum contrast
-        for pt1, pt2 in [((0, 0), (s, s)), ((w - s, 0), (w, s)), ((0, h - s), (s, h)), ((w - s, h - s), (w, h))]:
-            cv2.rectangle(overlay_bgr, pt1, pt2, (255, 255, 255), -1)
-
         cv2.imwrite(heatmap_path, overlay_bgr)
 
         # --- Generate TRANSPARENT RGBA heatmap PNG for WebAR Three.js texture ---

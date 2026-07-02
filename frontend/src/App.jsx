@@ -52,7 +52,7 @@ export default function App() {
         <div className="flex items-center gap-3">
           <Network className="text-neon-cyan drop-shadow-[0_0_5px_rgba(6,182,212,0.8)]" size={32} />
           <span className="font-bold text-2xl tracking-tight text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
-            Retina<span className="text-neon-cyan">Flow</span>
+            Retina<span className="text-neon-cyan">AI</span>
           </span>
         </div>
         <div className="text-[10px] md:text-sm font-mono text-neon-cyan uppercase tracking-[0.3em] font-light">
@@ -67,7 +67,7 @@ export default function App() {
           appState === 'RESULT' ? 'h-0 opacity-0 -translate-y-10 scale-90 overflow-hidden' : 'opacity-100 translate-y-0 scale-100 mb-6'
         }`}>
           <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-white drop-shadow-xl mb-3 text-center">
-            RetinaFlow
+            RetinaAI
           </h1>
           <p className="text-sm md:text-lg text-slate-400 font-light tracking-wide text-center">
             AI-powered retinal analysis with real-time heatmap visualization
