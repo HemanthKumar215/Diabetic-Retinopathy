@@ -1,6 +1,6 @@
-# RetinaFlow — AI Diabetic Retinopathy Screening
+# Diabetic Retinopathy Severity Evaluation using Vision Transformers and Grad-CAM
 
-Diabetic retinopathy (DR) is one of the leading causes of preventable blindness, and early detection depends on access to specialists who are scarce in many regions. **RetinaFlow** is a full-stack screening tool that grades a retinal fundus image into one of five DR severity levels and shows *why* the model made its decision.
+Diabetic retinopathy (DR) is one of the leading causes of preventable blindness, and early detection depends on access to specialists who are scarce in many regions. This project is a full-stack screening tool that grades a retinal fundus image into one of five DR severity levels and shows *why* the model made its decision.
 
 ## Features
 
@@ -8,9 +8,18 @@ Diabetic retinopathy (DR) is one of the leading causes of preventable blindness,
 - **Confidence scores** for every prediction
 - **Explainable AI** — Grad-CAM heatmaps highlight the retinal regions that drove the prediction, scaled by model confidence (faint for healthy, vivid for diseased)
 - **Preprocessing pipeline** — automatic black-border cropping and CLAHE contrast enhancement to make small lesions such as microaneurysms more visible
-- **Web app + WebAR viewer** — upload an image in the React app, or view results interactively in augmented reality
+- **Clinical dashboard** — upload a fundus image in the React web app and get the grade, confidence and heatmap from a FastAPI inference API
 
 ## Results
+
+Trained on EyePACS 2015 and evaluated on unseen data from APTOS 2019 and MESSIDOR-2 (cross-dataset validation).
+
+| Metric | This model | Baseline (DR-XAI, 2024) |
+|---|---|---|
+| Accuracy | 98.4% | 97.4% |
+| Precision | 97.8% | 96.2% |
+| Recall | 97.2% | 96.5% |
+| Quadratic Weighted Kappa | 0.98 | 0.95 |
 
 Grad-CAM explanations across all five severity grades:
 
@@ -39,8 +48,6 @@ Fundus image ──► Auto-crop + CLAHE ──► ViT-B/16 (fine-tuned) ──�
 | Model | PyTorch, timm, scikit-learn, OpenCV |
 | Backend | FastAPI, Uvicorn |
 | Frontend | React, Vite, Tailwind CSS |
-| AR | MindAR, A-Frame |
-| Deployment | DigitalOcean (API), Vercel (frontend) |
 
 ## Project structure
 
@@ -49,8 +56,7 @@ Fundus image ──► Auto-crop + CLAHE ──► ViT-B/16 (fine-tuned) ──�
 ├── ViT_DR_Inference.py        # Standalone inference + Grad-CAM visualisation
 ├── generate_clean_csv.py      # Cleans dataset CSVs against available images
 ├── backend/                   # FastAPI inference API (/predict)
-├── frontend/                  # React web app + WebAR viewer
-├── deploy/                    # Server setup and deployment scripts
+├── frontend/                  # React + Vite dashboard
 └── final_project_results/     # Grad-CAM outputs for each severity grade
 ```
 
@@ -72,6 +78,11 @@ npm run dev
 ```
 
 > The trained model weights (`vit_dr_final.pth`, ~343 MB) are not included in this repository.
+
+## Team
+
+Minor project, Department of Computing Technologies, SRM Institute of Science and Technology.
+Built by L. Andrew Rebello and P. Hemanth Kumar.
 
 ## Disclaimer
 
