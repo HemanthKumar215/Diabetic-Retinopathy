@@ -79,11 +79,6 @@ npm run dev
 
 > The trained model weights (`vit_dr_final.pth`, ~343 MB) are not included in this repository.
 
-## Team
-
-Minor project, Department of Computing Technologies, SRM Institute of Science and Technology.
-Built by L. Andrew Rebello and P. Hemanth Kumar.
-
 ## Disclaimer
 
 This is an academic project and is not a medical device. It is not intended for clinical diagnosis.
